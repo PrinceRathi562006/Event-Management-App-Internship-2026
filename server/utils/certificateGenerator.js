@@ -1,0 +1,246 @@
+const PDFDocument = require("pdfkit");
+const fs = require("fs");
+const path = require("path");
+const https = require("https");
+
+const fetchImageBuffer = (url) =>
+  new Promise((resolve) => {
+    if (!url || !url.startsWith("https://")) {
+      resolve(null);
+      return;
+    }
+
+    https
+      .get(url, (response) => {
+        if (response.statusCode !== 200) {
+          resolve(null);
+          response.resume();
+          return;
+        }
+
+        const chunks = [];
+        response.on("data", (chunk) => chunks.push(chunk));
+        response.on("end", () => resolve(Buffer.concat(chunks)));
+      })
+      .on("error", () => resolve(null));
+  });
+
+/**
+ * Generate Participation Certificate
+ * @param {Object} data
+ * @returns {Promise<String>}
+ */
+
+const generateCertificate = async ({
+  studentName,
+  eventTitle,
+  eventDate,
+  organizerName,
+  certificateNumber,
+  signatureImage,
+  partnerCompanies = [],
+}) => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      // Create certificates folder if not exists
+      const certificateDir = path.join(
+        __dirname,
+        "../uploads/certificates"
+      );
+
+      if (!fs.existsSync(certificateDir)) {
+        fs.mkdirSync(certificateDir, {
+          recursive: true,
+        });
+      }
+
+      const fileName = `${certificateNumber}.pdf`;
+
+      const filePath = path.join(
+        certificateDir,
+        fileName
+      );
+
+      const doc = new PDFDocument({
+        size: "A4",
+        layout: "landscape",
+        margin: 40,
+      });
+
+      const stream = fs.createWriteStream(filePath);
+      const signatureBuffer = await fetchImageBuffer(signatureImage);
+
+      doc.pipe(stream);
+
+      // ===============================
+      // Border
+      // ===============================
+      doc
+        .rect(20, 20, 800, 555)
+        .lineWidth(3)
+        .stroke("#4F46E5");
+
+      // ===============================
+      // Title
+      // ===============================
+      doc
+        .fontSize(30)
+        .fillColor("#4F46E5")
+        .text("CERTIFICATE OF PARTICIPATION", {
+          align: "center",
+        });
+
+      doc.moveDown(1);
+
+      // ===============================
+      // Subtitle
+      // ===============================
+      doc
+        .fontSize(18)
+        .fillColor("#555")
+        .text(
+          "This Certificate is Proudly Presented To",
+          {
+            align: "center",
+          }
+        );
+
+      doc.moveDown(1);
+
+      // ===============================
+      // Student Name
+      // ===============================
+      doc
+        .fontSize(34)
+        .fillColor("#111")
+        .text(studentName, {
+          align: "center",
+          underline: true,
+        });
+
+      doc.moveDown(1);
+
+      // ===============================
+      // Event
+      // ===============================
+      doc
+        .fontSize(18)
+        .fillColor("#444")
+        .text(
+          `For successfully participating in`,
+          {
+            align: "center",
+          }
+        );
+
+      doc.moveDown(0.5);
+
+      doc
+        .fontSize(26)
+        .fillColor("#4F46E5")
+        .text(eventTitle, {
+          align: "center",
+        });
+
+      doc.moveDown(1);
+
+      // ===============================
+      // Event Date
+      // ===============================
+      doc
+        .fontSize(16)
+        .fillColor("#333")
+        .text(
+          `Held on ${new Date(eventDate).toDateString()}`,
+          {
+            align: "center",
+          }
+        );
+
+      doc.moveDown(2);
+
+      if (partnerCompanies.length) {
+        doc
+          .fontSize(13)
+          .fillColor("#555")
+          .text(`In association with: ${partnerCompanies.map((partner) => partner.name).join(", ")}`, 80, 380, {
+            align: "center",
+            width: 680,
+          });
+      }
+
+      // ===============================
+      // Certificate Number
+      // ===============================
+      doc
+        .fontSize(14)
+        .fillColor("#666")
+        .text(
+          `Certificate No : ${certificateNumber}`,
+          60,
+          430
+        );
+
+      // ===============================
+      // Organizer
+      // ===============================
+      if (signatureBuffer) {
+        doc.image(signatureBuffer, 625, 395, {
+          fit: [130, 45],
+          align: "center",
+        });
+      }
+
+      doc
+        .fontSize(16)
+        .fillColor("#000")
+        .text(
+          organizerName,
+          600,
+          430,
+          {
+            align: "center",
+          }
+        );
+
+      doc
+        .fontSize(12)
+        .fillColor("#777")
+        .text(
+          "Organizer Signature",
+          600,
+          455,
+          {
+            align: "center",
+          }
+        );
+
+      // ===============================
+      // Footer
+      // ===============================
+      doc
+        .fontSize(10)
+        .fillColor("#888")
+        .text(
+          "Generated by Event Organizer - Campus Event Hub",
+          0,
+          540,
+          {
+            align: "center",
+          }
+        );
+
+      doc.end();
+
+      stream.on("finish", () => {
+        resolve(`/uploads/certificates/${fileName}`);
+      });
+
+      stream.on("error", reject);
+    } catch (error) {
+      reject(error);
+    }
+  });
+};
+
+module.exports = generateCertificate;

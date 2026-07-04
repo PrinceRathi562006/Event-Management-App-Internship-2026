@@ -1,0 +1,300 @@
+Event Organizer - Project Documentation
+
+1. Overview
+
+Event Organizer is a MERN stack campus event management system for Students,
+Organizers, and Admins. It supports OTP-based registration, date of birth in
+profiles, organizer approval, event approval, public event discovery, paid/free
+bookings, Razorpay payments, QR tickets, QR attendance, coordinator requests,
+feedback, expandable notifications, branded certificates, profile/settings,
+chart-based analytics dashboards, AI-assisted event creation, poster export,
+seat selection, waitlists, rich event pages, social sharing, Google Calendar
+links, PWA installation, dark/light theme switching, volunteer operations,
+scan history, exports, reports, MongoDB-backed realtime organizer chat,
+editable volunteer settings, second-level countdowns, and gamified student profiles.
+Public event, featured event, calendar, poster, speaker, discussion, volunteer,
+and scan-history data are loaded from backend/user-created records only; the
+frontend does not ship sample event fallbacks.
+
+2. Technology Stack
+
+Frontend:
+- React with Vite
+- React Router
+- Redux Toolkit
+- Axios
+- Framer Motion
+- Recharts
+- React Hot Toast
+- Lucide icons
+
+Backend:
+- Node.js
+- Express.js
+- MongoDB with Mongoose
+- JWT authentication
+- Nodemailer
+- Razorpay
+- Cloudinary
+- Multer
+- PDFKit
+- QRCode
+- Socket.io realtime chat, counters, event rooms, and announcements
+- Local upload storage for chat attachments under uploads/chat
+
+3. User Roles
+
+Student:
+- Registers with full academic details, date of birth, and profile image.
+- Account is created only after email OTP verification.
+- Books approved events.
+- Receives QR ticket by email after event registration.
+- Pays exact event fee for paid events through Razorpay.
+- Gets attendance marked by QR scan.
+- Receives certificate only if attendance is Present.
+- Can accept or reject student coordinator requests.
+- Accepted student coordinators can open event settings, view attendance rosters, mark QR attendance, and generate certificates for their assigned coordinator events.
+
+Organizer:
+- Registers with department, designation, date of birth, and profile image.
+- Account is created only after OTP verification.
+- Requires admin approval before organizer tools are enabled.
+- Creates events, adds speakers, uploads banners/gallery/signature, adds partner companies, sets exact fee, and sets last date of registration.
+- Uses local AI assistance to generate description, agenda, learning outcomes, and requirements.
+- Generates a downloadable event poster from title, date, venue, theme, and category.
+- Adds timeline entries, badge types, and richer event content.
+- Sends coordinator requests to students and approved organizers.
+- Manages own/assigned/coordinated events.
+- Scans QR tickets and generates certificates.
+- Uses editable volunteer assignment, QR scanner history, CSV export, completion report panels, and navbar Organizer Chat.
+
+Admin:
+- Full platform access.
+- Approves organizers.
+- Approves or rejects events.
+- Creates events.
+- Manages users and analytics.
+- Views attendance heatmap, admin analytics, operations panels, exports, cancellation/refund status, and navbar Organizer Chat.
+
+4. Registration Flow
+
+1. User fills registration form.
+2. Server checks duplicate email and phone.
+3. Registration data is stored temporarily with OTP.
+4. No User document is created before OTP verification.
+5. User verifies OTP.
+6. User document is created in MongoDB.
+7. Organizer accounts start as Pending Approval.
+
+5. Event Flow
+
+1. Approved organizer or admin opens Create Event.
+2. Event details, banner, gallery, speakers, capacity, last date of registration, fee, certificate signature, and partner companies are saved.
+3. Organizer can generate AI event copy and poster assets before submission.
+4. Organizer can add agenda, learning outcomes, requirements, timeline, badges, speakers, sponsors/partners, and gallery assets.
+5. Organizer-created events are Pending.
+6. Admin reviews and approves/rejects.
+7. Only Approved and Published events appear publicly.
+8. Event Settings can update event details, last date of registration, certificate signature, and partner companies later.
+
+6. Coordinator Flow
+
+1. Organizer/admin searches students by name, email, or roll number.
+2. Organizer/admin searches organizers by name, email, or department.
+3. Selected users receive coordinator requests.
+4. Requests appear in the Coordinator Requests panel on the student or organizer dashboard.
+5. Student and organizer users accept or reject pending requests from that panel.
+6. Accepted student coordinators are saved as Student Coordinators and receive coordinator event access.
+7. Accepted organizer coordinators are saved as Organizer Coordinators and Assigned Organizers.
+8. Coordinators can open assigned event details, use the Manage Event button, edit event settings, view registrations, view analytics, use volunteer/scanner-history panels, export CSV, print reports, mark attendance, manage feedback replies/visibility, use navbar Organizer Chat, and generate certificates for assigned events.
+
+7A. Organizer Chat
+
+1. Organizer Chat appears in the navbar after login only for admins, approved organizers, and users assigned as coordinators to at least one event.
+2. Chat messages are saved in MongoDB through OrganizerChatMessage.
+3. Socket.io broadcasts new messages live to the organizer-chat room.
+4. Users can send text, reply to previous messages, and upload images/documents/files as attachments.
+5. Attachments are stored under backend uploads/chat and served through the existing uploads static route.
+6. Dashboard no longer contains Organizer Chat; dashboard keeps Volunteer Management as editable event operations.
+7. The frontend loads chat history from /api/chat/organizer/messages and then listens for live organizer-chat-message events.
+8. The frontend dynamically loads the Socket.io client from the backend so no separate client package is required.
+9. Socket room access is protected on the server, so only eligible users can join organizer-chat.
+
+7. Booking, QR, And Payment
+
+1. Student books an approved event.
+2. System creates a Booking ID like EVT-2026-000123.
+3. QR code is generated with Booking ID, User ID, Event ID, and Ticket Number.
+4. Student receives a registration email with event details and attached QR ticket image.
+5. Free events are marked Paid automatically.
+6. Paid events use the exact fee added by organizer/admin.
+7. Razorpay order amount is created from the saved booking amount.
+8. Students can choose a preferred seat number during registration.
+9. If seats are full, students can join the waitlist instead of registering.
+10. When a booking is cancelled, the oldest waitlisted booking is promoted and receives a Seat Available notification.
+11. Paid booking cancellation stores Refund Initiated status.
+12. Event cancellation marks paid confirmed bookings as Cancelled and Refund Initiated.
+
+8. Attendance And Certificates
+
+1. Assigned organizers, student coordinators, organizer coordinators, and admins scan QR tickets.
+2. Booking is verified.
+3. Duplicate scans are blocked.
+4. Attendance is marked Present.
+5. Organizer/admin/coordinator attendance roster shows Total Registered, Present Students, and Absent Students.
+6. Clicking a student opens full student and booking details.
+7. Organizer/admin/coordinator generates certificate after attendance is Present.
+8. Certificate PDF includes organizer signature image and partner companies when they are added to the event.
+9. Certificate PDF is saved under backend uploads.
+10. Student receives an email with download link and attached PDF.
+11. Certificate verification is supported through QR/booking identity on generated certificate and ticket flows.
+12. Printable ID-card style data is available through student/booking details and QR ticket information.
+
+8A. Notifications
+
+1. Notifications load in the dashboard and navbar.
+2. Dashboard notification rows can be clicked to open full notification details.
+3. Notification detail includes message, event title, event date, venue, status, and action links when available.
+4. Opening a notification marks it as read.
+
+9. Main Pages
+
+- Home: backend-driven calendar section, hero, event countdown with seconds, featured events, categories, and empty states when no approved events are returned.
+- Events: public approved events with smart search by name, organizer, venue, date, and category; full category filters; wishlist; and nearby-events filtering.
+- Event Detail: booking, payment, seat selection, waitlist, countdown with seconds, live attendee counter, timeline, digital badges, uploaded gallery, user discussion, social sharing, Google Calendar link, feedback analytics, ticket details, and backend speaker profiles.
+- Calendar: responsive monthly event highlights with compact icon controls, light/dark mode styling, normal event highlighting for today/future event dates, and #f0a4a4 highlighting for past event dates.
+- Dashboard: role-based stats and actions, event detail links, chart-based analytics, registration trend analysis, admin analytics, attendance heatmap, user-added volunteer management, backend scan history, exports, total registered/present/absent attendance summaries, and present/upcoming/past event labels.
+- Dashboard: coordinator request accept/reject panel for students and organizers.
+- Dashboard: profile details card with a View Profile button.
+- Create Event: dedicated event creation page with AI description generator, poster generator, timeline, badges, last date of registration, certificate signature, and partner company fields.
+- Event Settings: update event, last date of registration, certificate branding, and send coordinator requests.
+- Profile: read-only account details including date of birth, profile completion progress, resume integration guidance, and achievements.
+- Settings: editable profile/account details including date of birth.
+- Admin: users, approvals, analytics, attendance roster, event management.
+- Global UI: dark/light theme switching with mode-aware text/background colors, navbar Organizer Chat, and PWA install support.
+
+9A. Advanced Feature Requirements Added
+
+The latest requirements are covered through a mix of backend-supported flows and frontend-ready feature surfaces:
+
+- AI Event Description Generator: Create Event generates description, agenda, learning outcomes, and requirements locally without paid AI credits.
+- AI Poster Generator: Create Event exports a generated SVG poster from title, date, venue, and theme.
+- Seat Selection: Event Detail shows a stage and seat grid and sends selected seat to booking.
+- Waitlist System: Full-event registrations can join waitlist; cancellation promotes the oldest waiting user.
+- Event Countdown: Home and Event Detail show days, hours, minutes, and seconds with one-second updates.
+- Live Attendee Counter: Event Detail displays registered, checked-in, and pending counters with Socket.io-ready data shape.
+- Event Timeline: Event Detail displays an interactive timeline.
+- Digital Badges: Events store and display Speaker, Volunteer, Winner, Organizer, and Top Participant badges.
+- Event Gallery: Event Detail displays uploaded gallery images after events.
+- Social Sharing: WhatsApp, LinkedIn, X, Copy Link, and Google Calendar actions are available.
+- Feedback Analytics: Event Detail displays percentage bars for overall, food, venue, and speaker feedback.
+- Attendance Heatmap: Admin dashboard shows monthly attendance trends.
+- Volunteer Management: Dashboard starts empty and lets users add, edit, and remove volunteer name, duty, and status.
+- Organizer Chat: Navbar includes MongoDB-backed realtime group chat for admins, organizers, and assigned coordinators, including replies and image/document/file attachments.
+- Registration Trend Analysis: Dashboard charts show daily registrations, cumulative growth, daily change, total, peak day, average per active day, and last 7 days count.
+- Attendance Summary: Dashboard attendance roster shows Total Registered, Present Students, and Absent Students before the detailed lists.
+- QR Scanner History: Dashboard shows backend registration/check-in history and an empty state when no scans exist.
+- Event Cancellation Refund: Paid cancelled bookings and cancelled events are marked Refund Initiated.
+- Printable ID Cards: QR ticket and student/booking data provide printable ID-card source data.
+- Event Categories: Workshop, Hackathon, Sports, Seminar, Cultural, Technical, Placement, Fest, Competition, Conference, and Other.
+- Smart Search: Events page searches name, organizer, venue, date, and category.
+- Wishlist: Events page saves events locally.
+- Nearby Events: Events page includes a nearby-events filter.
+- Event Reviews: Event Detail discussion/review panel is available.
+- Dark/Light Theme: Navbar toggles full app theme and text colors adapt for readability in both modes.
+- PWA: Manifest and service worker enable installable app behavior in production.
+- Email Templates: Booking/certificate templates already exist; dashboard lists registration, payment, reminder, certificate, and cancellation templates.
+- Reminder Notifications: Dashboard documents reminder schedule of 7 days, 1 day, 2 hours, and 30 minutes.
+- Certificate Verification: Certificate/ticket identity and QR flows support verification.
+- Admin Analytics: Admin dashboard cards and charts show platform activity.
+- User Profile Completion: Profile shows progress and missing fields.
+- Resume Integration: Profile/registration details surface resume workflow requirements.
+- Event Sponsors: event partner-company fields support sponsor/partner data added by organizers.
+- Speaker Profiles: Event Detail renders speaker photo, LinkedIn, bio/session-ready fields.
+- Event Discussion Forum: Event Detail starts with no posts and supports user-added ask/reply/like style discussion.
+- Multi-language Support: UI is structured for future English/Hindi language toggles.
+- Achievement System: Profile displays achievement badges.
+- Event Completion Report: Dashboard prints completion report summary.
+- CSV/Excel Export: Dashboard exports attendance CSV that opens in Excel.
+- Public Organizer Portfolio: event organizer data is populated from backend records.
+
+10. Deployment Checklist
+
+Backend environment variables:
+- PORT
+- NODE_ENV
+- MONGO_URI
+- JWT_SECRET
+- JWT_EXPIRE
+- CLIENT_URL
+- API_RATE_LIMIT_MAX
+- SUPPORT_EMAIL
+- EMAIL_USER
+- EMAIL_PASS
+- RAZORPAY_KEY_ID
+- RAZORPAY_KEY_SECRET
+- CLOUDINARY_CLOUD_NAME
+- CLOUDINARY_API_KEY
+- CLOUDINARY_API_SECRET
+
+Frontend environment variables:
+- VITE_API_URL
+- VITE_RAZORPAY_KEY_ID
+
+Before deployment:
+- Use a production MongoDB connection string.
+- Use a long random JWT secret.
+- Set CLIENT_URL to deployed frontend URL. Multiple frontend URLs can be comma-separated.
+- Set VITE_API_URL to deployed backend API URL when frontend and backend are on different domains.
+- If VITE_API_URL is not set in production, the frontend uses same-origin /api instead of localhost:5000.
+- Add Razorpay live keys for production.
+- Add Cloudinary keys for uploads.
+- Add Gmail app password or SMTP credentials for emails.
+- Rotate any keys that were committed or shared during development.
+
+11. Verification Checklist
+
+- Register student, verify OTP, then login.
+- Register organizer, verify OTP, admin approves organizer.
+- Organizer creates event.
+- Admin approves event.
+- Student books free event and receives QR email.
+- Student books paid event and pays exact fee.
+- Organizer sends coordinator requests.
+- Student/organizer accepts coordinator request.
+- Student/organizer coordinator opens assigned event settings.
+- Student/organizer coordinator scans QR and generates certificate for assigned event.
+- Duplicate QR scan is blocked.
+- Organizer/admin generates certificate.
+- Student receives certificate email with attached PDF.
+- Calendar month/year controls are large and labeled.
+- Calendar controls display Previous Month, Next Month, Previous Year, and Next Year.
+- Dashboard notifications open full details and event links.
+- Dashboard loads without 429 errors when backend is running.
+- Navbar Organizer Chat appears for admin, approved organizer, and assigned coordinator users.
+- Organizer Chat persists messages in MongoDB and shows new messages live through Socket.io.
+- Organizer Chat supports replies and image/document/file attachments.
+- Dashboard Volunteer Management allows editing volunteer name, duty, status, adding volunteers, and removing volunteers.
+- Dashboard registration trend graph shows analysis metrics and combined daily/cumulative/change data.
+- Dashboard attendance roster shows Total Registered, Present Students, and Absent Students.
+- Countdown displays seconds and updates every second.
+- Dark mode keeps text readable in navbar chat, dashboard cards, inputs, and analytics panels.
+- Home, Events, Calendar, and Event Detail do not render bundled sample events when the backend has no event data.
+- Calendar highlights past event dates with #f0a4a4 and keeps current/future event dates on the normal event highlight.
+- Create Event AI generation fills description, agenda, outcomes, and requirements.
+- Create Event poster download produces an SVG poster.
+- Event Detail seat selection passes a seat number when booking.
+- Full event waitlist creates a Waiting booking.
+- Cancelling a booking promotes the oldest waitlisted booking.
+- Event cancellation marks paid bookings Refund Initiated.
+- Events page smart search, wishlist, and nearby filter work.
+- Event cards and Event Detail posters only show uploaded/backend poster URLs; missing posters use empty states.
+- Theme toggle persists across reloads.
+- Production build includes manifest and service worker for PWA installation.
+
+12. Known Local Development Notes
+
+- In local development, start the backend or set VITE_API_URL before using the frontend.
+- In production, configure VITE_API_URL for a separate backend domain or deploy the frontend behind the same domain so /api reaches the backend.
+- Vite/React development warnings about preloaded resources or WebSocket back-forward cache are browser/dev-server warnings, not production API failures.
+- If emails are not configured, development mode logs email content instead of sending.
