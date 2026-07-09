@@ -13,7 +13,8 @@ import {
 } from "lucide-react";
 import Calendar from "react-calendar";
 import { Link } from "react-router-dom";
-import hero from "../assets/images/hero.jpg";
+// import hero from "../assets/images/hero.jpg";
+import heroVideo from "../assets/videos/hero2.mp4";
 import { CountdownBlocks } from "../components/features/EventExperience";
 import Container from "../components/ui/Container";
 import GlassCard from "../components/ui/GlassCard";
@@ -155,7 +156,17 @@ function Home() {
               </Link>
             </div>
           </div>
-          <img alt="Campus event" className="hero-image" src={hero} />
+          {/* <img alt="Campus event" className="hero-image" src={hero} /> */}
+          <video
+            className="hero-video"
+            autoPlay
+            muted
+            loop
+            playsInline
+          >
+  <source src={heroVideo} type="video/mp4" />
+  Your browser does not support the video tag.
+</video>
         </Container>
       </section>
 
