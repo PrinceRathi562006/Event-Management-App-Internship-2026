@@ -2733,3 +2733,132 @@ select:focus {
     font-size: 0.76rem;
   }
 }
+
+
+/* ===============================
+   Logo
+================================== */
+
+.logo{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    text-decoration:none;
+    cursor:pointer;
+
+    flex-shrink:0;
+
+    transition:all .35s ease;
+}
+
+/* Logo Image */
+
+.logo img{
+
+    width:auto;
+
+    height:52px;
+
+    object-fit:contain;
+
+    user-select:none;
+
+    -webkit-user-drag:none;
+
+    transition:
+        transform .35s ease,
+        filter .35s ease,
+        opacity .35s ease;
+}
+
+/* Hover */
+
+.logo:hover img{
+
+    transform:scale(1.06);
+
+    filter:
+        drop-shadow(0 0 8px rgba(230, 181, 205, 0.45))
+        drop-shadow(0 0 18px rgba(99,102,241,.30));
+
+}
+
+/* Click */
+
+.logo:active img{
+
+    transform:scale(.96);
+
+}
+
+/* Keyboard */
+
+.logo:focus-visible{
+
+    outline:2px solid #a855f7;
+
+    outline-offset:6px;
+
+    border-radius:10px;
+
+}
+
+/* Large Laptop */
+
+@media (max-width:1200px){
+
+.logo img{
+
+    height:48px;
+
+}
+
+}
+
+/* Laptop */
+
+@media (max-width:992px){
+
+.logo img{
+
+    height:44px;
+
+}
+
+}
+
+/* Tablet */
+
+@media (max-width:768px){
+
+.logo img{
+
+    height:38px;
+
+}
+
+}
+
+/* Mobile */
+
+@media (max-width:576px){
+
+.logo img{
+
+    height:34px;
+
+}
+
+}
+
+/* Small Mobile */
+
+@media (max-width:420px){
+
+.logo img{
+
+    height:30px;
+
+}
+
+}
