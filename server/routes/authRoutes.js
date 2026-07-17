@@ -151,6 +151,12 @@ router.post(
   resendOTP
 );
 
+router.post(
+  "/otp/resend",
+  emailValidation,
+  resendOTP
+);
+
 // Forgot Password
 router.post(
   "/forgot-password",

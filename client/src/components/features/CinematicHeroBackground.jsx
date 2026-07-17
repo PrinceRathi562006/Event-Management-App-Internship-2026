@@ -447,7 +447,7 @@ function CinematicHeroBackground({ className = "", variant = "events" }) {
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(42, 16 / 9, 0.1, 80);
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
-    const clock = new THREE.Clock();
+    const animationStartedAt = performance.now();
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     renderer.setClearColor(0x000000, 0);
@@ -641,7 +641,7 @@ function CinematicHeroBackground({ className = "", variant = "events" }) {
     observer.observe(mount);
 
     const animate = () => {
-      const elapsed = clock.getElapsedTime();
+      const elapsed = (performance.now() - animationStartedAt) / 1000;
       const loopTime = elapsed % 16;
       const speed = reducedMotion ? 0.2 : 1;
 
