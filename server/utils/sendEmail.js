@@ -21,27 +21,31 @@ const smtpSecure =
   smtpPort === 465;
 const emailConfigured = Boolean(emailUser && emailPass);
 
-const transporter = emailConfigured
-  ? nodemailer.createTransport({
-      logger: true,
-      debug: true,
+const transporter = nodemailer.createTransport({
+  host: "smtp.gmail.com",
+  port: 587,
+  secure: false,
+  requireTLS: true,
+  family: 4,
 
-      host: "smtp.gmail.com",
-      port: 587,
-      secure: false,
-      requireTLS: true,
-      family: 4,
+  auth: {
+    user: emailUser,
+    pass: emailPass,
+  },
 
-      auth: {
-        user: emailUser,
-        pass: emailPass,
-      },
+  tls: {
+    servername: "smtp.gmail.com",
+    rejectUnauthorized: true,
+  },
 
-      connectionTimeout: 20000,
-      greetingTimeout: 20000,
-      socketTimeout: 30000,
-    })
-  : null;
+  connectionTimeout: 20000,
+  greetingTimeout: 20000,
+  socketTimeout: 30000,
+  dnsTimeout: 10000,
+
+  logger: true,
+  debug: true,
+});
 
 console.log("SMTP CONFIG:", {
   host: "smtp.gmail.com",
