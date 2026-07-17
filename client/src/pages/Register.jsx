@@ -1,6 +1,7 @@
 import { useState } from "react";
 import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
+import CinematicHeroBackground from "../components/features/CinematicHeroBackground";
 import Container from "../components/ui/Container";
 import GlassCard from "../components/ui/GlassCard";
 import api from "../services/api";
@@ -72,7 +73,8 @@ function Register() {
   };
 
   return (
-    <section className="auth-page">
+    <section className="auth-page scene-page">
+      <CinematicHeroBackground className="scene-page-background" variant="signup" />
       <Container>
         <GlassCard className="auth-card">
           <h1>Create account</h1>

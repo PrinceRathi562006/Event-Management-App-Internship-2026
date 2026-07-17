@@ -1,6 +1,7 @@
 const Event = require("../models/Event");
 const OrganizerChatMessage = require("../models/OrganizerChatMessage");
 const { getIO } = require("../sockets/socket");
+const { uploadFileToCloudinary } = require("../utils/cloudinaryUpload");
 
 const getPublicFileUrl = (req, file) =>
   `${req.protocol}://${req.get("host")}/uploads/chat/${file.filename}`;
@@ -85,12 +86,18 @@ exports.sendOrganizerChatMessage = async (req, res, next) => {
     }
 
     const text = String(req.body.message || "").trim();
-    const attachments = (req.files || []).map((file) => ({
-      originalName: file.originalname,
-      url: getPublicFileUrl(req, file),
-      mimeType: file.mimetype,
-      size: file.size,
-    }));
+    const attachments = await Promise.all(
+      (req.files || []).map(async (file) => {
+        const uploadedFile = await uploadFileToCloudinary(file.path, "event-organizer/chat");
+
+        return {
+          originalName: file.originalname,
+          url: uploadedFile?.url || getPublicFileUrl(req, file),
+          mimeType: file.mimetype,
+          size: file.size,
+        };
+      })
+    );
 
     if (!text && !attachments.length) {
       return res.status(400).json({

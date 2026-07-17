@@ -60,7 +60,7 @@ const errorHandler = (err, req, res, next) => {
     statusCode = 400;
 
     if (err.code === "LIMIT_FILE_SIZE") {
-      message = "File size exceeds the maximum limit (5MB)";
+      message = "File size exceeds the maximum upload limit.";
     } else {
       message = err.message;
     }

@@ -13,6 +13,16 @@ const server = http.createServer(app);
 
 initSocket(server);
 
+server.on("error", (error) => {
+    if (error.code === "EADDRINUSE") {
+        console.error(`Port ${PORT} is already in use. Stop the other server or set a different PORT in server/.env.`);
+        process.exit(1);
+    }
+
+    console.error("Server failed to start:", error.message);
+    process.exit(1);
+});
+
 server.listen(PORT, () => {
     console.log(`Server running on ${PORT}`);
 });

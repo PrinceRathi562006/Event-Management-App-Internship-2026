@@ -6,7 +6,7 @@ const { sendTokenResponse } = require("../utils/generateToken");
 const sendEmail = require("../utils/sendEmail");
 const otpTemplate = require("../templates/otpTemplate");
 const resetPasswordTemplate = require("../templates/resetPasswordTemplate");
-const { uploadToCloudinary } = require("../utils/cloudinaryUpload");
+const { uploadFileToCloudinary, uploadToCloudinary } = require("../utils/cloudinaryUpload");
 
 const normalizeEmail = (email = "") => email.trim().toLowerCase();
 
@@ -650,6 +650,44 @@ exports.uploadProfileImage = async (req, res, next) => {
       success: true,
       message: "Profile image uploaded successfully.",
       profileImage: uploadedImage.url,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.uploadResume = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "Please upload a resume file.",
+      });
+    }
+
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found.",
+      });
+    }
+
+    const uploadedResume = await uploadFileToCloudinary(req.file.path, "event-organizer/resumes");
+
+    user.resumeUrl = uploadedResume?.url || `/uploads/resumes/${req.file.filename}`;
+    user.resumePublicId = uploadedResume?.public_id || "";
+    user.resumeFileName = req.file.originalname;
+    user.resumeMimeType = req.file.mimetype;
+    user.resumeUploadedAt = new Date();
+
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Resume uploaded successfully.",
+      user,
     });
   } catch (error) {
     next(error);

@@ -9,9 +9,7 @@ function Logo() {
         <CalendarDays size={22} />
       </span>
       {/* <span>Event Organizer</span> */}
-      <a href="/" className="logo">
-      <img src={logo} alt="event organizer" /></a>
-      
+      <img src={logo} alt="event organizer" />
     </Link>
   );
 }

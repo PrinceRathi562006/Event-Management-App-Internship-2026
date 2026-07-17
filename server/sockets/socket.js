@@ -5,8 +5,10 @@ const User = require("../models/User");
 
 let io;
 
+const normalizeOrigin = (origin = "") => origin.trim().replace(/\/+$/, "");
+
 const allowedOrigins = [
-  ...(process.env.CLIENT_URL || "").split(",").map((origin) => origin.trim()).filter(Boolean),
+  ...(process.env.CLIENT_URL || "").split(",").map(normalizeOrigin).filter(Boolean),
   "http://localhost:5173",
   "http://127.0.0.1:5173",
 ].filter(Boolean);
@@ -52,7 +54,9 @@ const initSocket = (server) => {
   io = new Server(server, {
     cors: {
       origin(origin, callback) {
-        if (!origin || allowedOrigins.includes(origin) || isLocalDevOrigin(origin)) {
+        const normalizedOrigin = normalizeOrigin(origin);
+
+        if (!origin || allowedOrigins.includes(normalizedOrigin) || isLocalDevOrigin(normalizedOrigin)) {
           callback(null, true);
         } else {
           callback(new Error("Not allowed by CORS"));

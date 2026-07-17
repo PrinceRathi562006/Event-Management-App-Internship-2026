@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import CinematicHeroBackground from "../components/features/CinematicHeroBackground";
 import Container from "../components/ui/Container";
 import GlassCard from "../components/ui/GlassCard";
 import Loader from "../components/ui/Loader";
@@ -31,7 +32,8 @@ function CertificatePage() {
   }
 
   return (
-    <section className="section-content page-top">
+    <section className="section-content page-top scene-page">
+      <CinematicHeroBackground className="scene-page-background" variant="certificate" />
       <Container>
         <GlassCard className="certificate-preview">
           <p className="eyebrow">Certificate</p>

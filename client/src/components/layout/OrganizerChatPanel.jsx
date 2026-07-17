@@ -31,15 +31,36 @@ function OrganizerChatPanel() {
   const threadRef = useRef(null);
 
   useEffect(() => {
+    let mounted = true;
+
     if (!user) {
-      setCanAccess(false);
-      return;
+      queueMicrotask(() => {
+        if (mounted) {
+          setCanAccess(false);
+        }
+      });
+
+      return () => {
+        mounted = false;
+      };
     }
 
     api
       .get("/chat/organizer/access")
-      .then((response) => setCanAccess(Boolean(response.data.canAccess)))
-      .catch(() => setCanAccess(false));
+      .then((response) => {
+        if (mounted) {
+          setCanAccess(Boolean(response.data.canAccess));
+        }
+      })
+      .catch(() => {
+        if (mounted) {
+          setCanAccess(false);
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
   }, [user]);
 
   useEffect(() => {

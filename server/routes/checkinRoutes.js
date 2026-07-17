@@ -9,7 +9,7 @@ const { authorize } = require("../middleware/roleMiddleware");
 router.post(
   "/scan",
   protect,
-  authorize("student", "organizer", "admin"),
+  authorize("organizer", "admin"),
   scanCheckIn
 );
 

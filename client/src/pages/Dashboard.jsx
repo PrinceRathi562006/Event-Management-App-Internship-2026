@@ -1,6 +1,23 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { CalendarDays, CheckCircle2, Download, FileText, Mail, QrCode, ShieldCheck, Ticket, UserCog, UsersRound } from "lucide-react";
+import {
+  Award,
+  BarChart3,
+  Bell,
+  CalendarDays,
+  CheckCircle2,
+  ClipboardList,
+  Download,
+  FileText,
+  Mail,
+  Menu,
+  QrCode,
+  ShieldCheck,
+  Ticket,
+  User,
+  UserCog,
+  UsersRound,
+} from "lucide-react";
 import { Link } from "react-router-dom";
 import { useSelector } from "react-redux";
 import {
@@ -10,7 +27,6 @@ import {
   Cell,
   ComposedChart,
   Line,
-  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -18,11 +34,13 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import ProfessionalQRScanner from "../components/features/ProfessionalQRScanner";
 import Container from "../components/ui/Container";
 import GlassCard from "../components/ui/GlassCard";
 import Loader from "../components/ui/Loader";
 import SectionTitle from "../components/ui/SectionTitle";
 import api from "../services/api";
+import { getSocket } from "../services/socketClient";
 import { downloadCsv } from "../utils/eventFeatures";
 import { getApiMessage } from "../utils/forms";
 
@@ -38,25 +56,78 @@ function StatCard({ icon: Icon, label, value }) {
   );
 }
 
+function DashboardSidebar({ activeSection, collapsed, items, onSelect, onToggle }) {
+  return (
+    <aside className={`dashboard-sidebar${collapsed ? " is-collapsed" : ""}`} aria-label="Dashboard sections">
+      <div className="dashboard-sidebar-head">
+        <span>{collapsed ? "Menu" : "Workspace"}</span>
+        <button aria-label={collapsed ? "Expand dashboard sidebar" : "Collapse dashboard sidebar"} onClick={onToggle} type="button">
+          <Menu size={18} />
+        </button>
+      </div>
+      <nav className="dashboard-sidebar-nav">
+        {items.map(({ id, icon: Icon, label }) => (
+          <button
+            aria-current={activeSection === id ? "page" : undefined}
+            className={activeSection === id ? "active" : ""}
+            key={id}
+            onClick={() => onSelect(id)}
+            title={collapsed ? label : undefined}
+            type="button"
+          >
+            <Icon size={18} />
+            <span>{label}</span>
+          </button>
+        ))}
+      </nav>
+    </aside>
+  );
+}
+
+function DashboardSection({ active, children }) {
+  if (!active) {
+    return null;
+  }
+
+  return <div className="dashboard-section-view">{children}</div>;
+}
+
 const chartColors = ["#2563eb", "#16a34a", "#f59e0b", "#dc2626"];
+
+const getAssetUrl = (value) => {
+  if (!value) return "";
+  if (value.startsWith("http")) return value;
+  const apiBaseUrl = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:5000/api" : "/api");
+  const apiRoot = apiBaseUrl.replace(/\/api\/?$/, "");
+  return `${apiRoot}${value}`;
+};
 
 function EmptyChart({ label }) {
   return <div className="chart-empty">{label}</div>;
 }
 
 function EventAnalyticsCharts({ analytics }) {
-  let cumulative = 0;
-  const registrations = (analytics?.registrationsOverTime || []).map((item, index, source) => {
-    cumulative += Number(item.count || 0);
-    const previous = index > 0 ? Number(source[index - 1].count || 0) : Number(item.count || 0);
+  const registrations = (analytics?.registrationsOverTime || []).reduce(
+    (state, item, index, source) => {
+      const registrationsCount = Number(item.count || 0);
+      const cumulative = state.cumulative + registrationsCount;
+      const previous = index > 0 ? Number(source[index - 1].count || 0) : registrationsCount;
 
-    return {
-      date: item._id,
-      registrations: Number(item.count || 0),
-      cumulative,
-      change: Number(item.count || 0) - previous,
-    };
-  });
+      return {
+        cumulative,
+        items: [
+          ...state.items,
+          {
+            date: item._id,
+            registrations: registrationsCount,
+            cumulative,
+            change: registrationsCount - previous,
+          },
+        ],
+      };
+    },
+    { cumulative: 0, items: [] }
+  ).items;
   const attendance = Number(analytics?.attendance || 0);
   const totalRegistrations = Number(analytics?.totalRegistrations || 0);
   const peakDay = registrations.reduce((peak, item) => (item.registrations > peak.registrations ? item : peak), {
@@ -223,13 +294,19 @@ function OperationsPanel({ events = [], registrations = [] }) {
   const removeVolunteer = (id) => {
     setVolunteers((current) => current.filter((volunteer) => volunteer.id !== id));
   };
+  const filledVolunteers = volunteers.filter((volunteer) => volunteer.name || volunteer.duty);
 
   return (
     <>
-      <GlassCard className="dashboard-panel">
+      <GlassCard className="dashboard-panel volunteer-management-panel">
         <div className="panel-head">
           <h2>Volunteer Management</h2>
-          <UserCog size={22} />
+          <div className="row-actions">
+            <button className="secondary-button volunteer-add-button" onClick={addVolunteer} type="button">
+              Add Volunteer
+            </button>
+            <UserCog size={22} />
+          </div>
         </div>
         <div className="volunteer-editor-list">
           {volunteers.length ? (
@@ -262,21 +339,18 @@ function OperationsPanel({ events = [], registrations = [] }) {
               </div>
             ))
           ) : (
-            <p>No volunteers added yet.</p>
+            <p className="volunteer-empty">No volunteers added yet.</p>
           )}
         </div>
-        <button className="secondary-button" onClick={addVolunteer} type="button">
-          Add Volunteer
-        </button>
-        <div className="volunteer-summary">
-          {volunteers
-            .filter((volunteer) => volunteer.name || volunteer.duty)
-            .map((volunteer) => (
+        {filledVolunteers.length > 0 && (
+          <div className="volunteer-summary">
+            {filledVolunteers.map((volunteer) => (
               <span key={volunteer.id}>
                 {volunteer.name || "Unnamed volunteer"}: {volunteer.duty || "Duty not set"} / {volunteer.status}
               </span>
             ))}
-        </div>
+          </div>
+        )}
       </GlassCard>
 
       <GlassCard className="dashboard-panel">
@@ -391,7 +465,34 @@ function StudentRosterButton({ registration, selected, onSelect }) {
   );
 }
 
-function RegistrationDetails({ registration }) {
+function SeatEditForm({ registration, onUpdateSeat, saving }) {
+  const [seatNumber, setSeatNumber] = useState(registration.seatNumber || "");
+
+  return (
+    <form className="seat-edit-form" onSubmit={(event) => {
+      event.preventDefault();
+      onUpdateSeat(registration._id, seatNumber);
+    }}>
+      <label>
+        Seat number
+        <input onChange={(event) => setSeatNumber(event.target.value)} placeholder="A1, B4, VIP-2" value={seatNumber} />
+      </label>
+      <div className="row-actions">
+        <button className="secondary-button" disabled={saving || !registration.seatNumber} onClick={() => {
+          setSeatNumber("");
+          onUpdateSeat(registration._id, "");
+        }} type="button">
+          Remove seat
+        </button>
+        <button className="primary-button" disabled={saving} type="submit">
+          Save seat
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function RegistrationDetails({ registration, onUpdateSeat, saving }) {
   if (!registration) {
     return null;
   }
@@ -421,6 +522,7 @@ function RegistrationDetails({ registration }) {
     ["Payment status", registration.paymentStatus],
     ["Payment method", registration.paymentMethod],
     ["Amount", registration.amount !== undefined ? `Rs ${registration.amount}` : ""],
+    ["Seat", registration.seatNumber],
     ["Attendance", registration.attendanceStatus],
     ["Checked in", formatDateTime(registration.checkedInAt)],
     ["Certificate", registration.certificateIssued ? "Issued" : "Not issued"],
@@ -436,6 +538,11 @@ function RegistrationDetails({ registration }) {
           <h3>{student.name || "Student details"}</h3>
           <span>{registration.attendanceStatus || "Not Marked"}</span>
         </div>
+        {student.resumeUrl && (
+          <a className="secondary-button" href={getAssetUrl(student.resumeUrl)} rel="noreferrer" target="_blank">
+            Resume
+          </a>
+        )}
       </div>
       <div className="detail-grid compact-detail-grid">
         <div>
@@ -455,13 +562,19 @@ function RegistrationDetails({ registration }) {
               <strong>{detailValue(value)}</strong>
             </p>
           ))}
+          <SeatEditForm
+            key={`${registration._id}-${registration.seatNumber || "none"}`}
+            onUpdateSeat={onUpdateSeat}
+            registration={registration}
+            saving={saving}
+          />
         </div>
       </div>
     </div>
   );
 }
 
-function AttendanceRoster({ registrations, selectedRegistrationId, onSelectRegistration, eventOptions, selectedEventId, onSelectEvent }) {
+function AttendanceRoster({ registrations, selectedRegistrationId, onSelectRegistration, eventOptions, selectedEventId, onSelectEvent, onUpdateSeat, saving }) {
   const presentRegistrations = registrations.filter((registration) => registration.attendanceStatus === "Present");
   const absentRegistrations = registrations.filter((registration) => registration.attendanceStatus !== "Present");
   const selectedRegistration = registrations.find((registration) => registration._id === selectedRegistrationId);
@@ -513,7 +626,7 @@ function AttendanceRoster({ registrations, selectedRegistrationId, onSelectRegis
               </div>
             ))}
           </div>
-          <RegistrationDetails registration={selectedRegistration} />
+          <RegistrationDetails onUpdateSeat={onUpdateSeat} registration={selectedRegistration} saving={saving} />
         </>
       ) : (
         <p>No registrations for the selected event yet.</p>
@@ -623,10 +736,11 @@ function Dashboard({ adminOnly = false }) {
   const [analytics, setAnalytics] = useState(null);
   const [selectedEventId, setSelectedEventId] = useState("");
   const [selectedRegistrationId, setSelectedRegistrationId] = useState("");
-  const [ticketNumber, setTicketNumber] = useState("");
   const [bookingId, setBookingId] = useState("");
   const [loading, setLoading] = useState(Boolean(user));
   const [saving, setSaving] = useState(false);
+  const [dashboardSidebarCollapsed, setDashboardSidebarCollapsed] = useState(false);
+  const [activeDashboardSection, setActiveDashboardSection] = useState("requests");
 
   const stats = useMemo(() => {
     if (role === "organizer") {
@@ -654,6 +768,47 @@ function Dashboard({ adminOnly = false }) {
       { label: "Cancelled", value: dashboard.cancelledBookings || 0, icon: UsersRound },
     ];
   }, [dashboard, events.length, role]);
+
+  const dashboardSections = useMemo(() => {
+    if (role === "admin") {
+      return [
+        { id: "analytics", label: "Analytics", icon: BarChart3 },
+        { id: "operations", label: "Operations", icon: ClipboardList },
+        { id: "approvals", label: "Approve Events", icon: ShieldCheck },
+        { id: "attendance", label: "Attendance", icon: UsersRound },
+        { id: "scanner", label: "QR Scanner", icon: QrCode },
+        { id: "users", label: "Manage Users", icon: UserCog },
+        { id: "notifications", label: "Notifications", icon: Bell },
+      ];
+    }
+
+    if (role === "organizer") {
+      return [
+        { id: "requests", label: "Coordinator Requests", icon: ClipboardList },
+        { id: "workspace", label: "Workspace", icon: CalendarDays },
+        { id: "events", label: "My Events", icon: Ticket },
+        { id: "attendance", label: "Attendance", icon: UsersRound },
+        { id: "scanner", label: "QR Scanner", icon: QrCode },
+        { id: "analytics", label: "Analytics", icon: BarChart3 },
+        { id: "operations", label: "Operations", icon: UserCog },
+        { id: "certificates", label: "Certificates", icon: Award },
+        { id: "notifications", label: "Notifications", icon: Bell },
+      ];
+    }
+
+    return [
+      { id: "requests", label: "Coordinator Requests", icon: ClipboardList },
+      { id: "my-events", label: "My Events", icon: Ticket },
+      { id: "coordinator-events", label: "Coordinator Events", icon: CalendarDays },
+      { id: "attendance", label: "Attendance", icon: UsersRound },
+      { id: "scanner", label: "QR Scanner", icon: QrCode },
+      { id: "certificates", label: "Certificates", icon: Award },
+      { id: "analytics", label: "Analytics", icon: BarChart3 },
+      { id: "operations", label: "Operations", icon: UserCog },
+      { id: "profile", label: "Profile Details", icon: User },
+      { id: "notifications", label: "Notifications", icon: Bell },
+    ];
+  }, [role]);
 
   const refresh = useCallback(async () => {
     if (role === "organizer" && user?.organizerStatus !== "Approved") {
@@ -733,45 +888,62 @@ function Dashboard({ adminOnly = false }) {
     }
   }, [adminOnly, role, user, refresh]);
 
-  useEffect(() => {
+  const loadEventWorkspace = useCallback(async () => {
     if (!selectedEventId || !["student", "organizer", "admin"].includes(role)) {
       return;
     }
 
-    api
-      .get(`/organizer/analytics/${selectedEventId}`)
-      .then((response) => setAnalytics(response.data.analytics))
-      .catch(() => setAnalytics(null));
+    try {
+      const [analyticsResponse, registrationsResponse] = await Promise.all([
+        api.get(`/organizer/analytics/${selectedEventId}`),
+        api.get(`/organizer/events/${selectedEventId}/registrations`),
+      ]);
 
-    api
-      .get(`/organizer/events/${selectedEventId}/registrations`)
-      .then((response) => {
-        const nextRegistrations = response.data.registrations || [];
-        setRegistrations(nextRegistrations);
-        setSelectedRegistrationId((current) =>
-          nextRegistrations.some((registration) => registration._id === current) ? current : ""
-        );
-      })
-      .catch(() => {
-        setRegistrations([]);
-        setSelectedRegistrationId("");
-      });
+      const nextRegistrations = registrationsResponse.data.registrations || [];
+      setAnalytics(analyticsResponse.data.analytics);
+      setRegistrations(nextRegistrations);
+      setSelectedRegistrationId((current) =>
+        nextRegistrations.some((registration) => registration._id === current) ? current : ""
+      );
+    } catch {
+      setAnalytics(null);
+      setRegistrations([]);
+      setSelectedRegistrationId("");
+    }
   }, [selectedEventId, role]);
 
-  const checkInTicket = async (event) => {
-    event.preventDefault();
-    setSaving(true);
+  useEffect(() => {
+    queueMicrotask(loadEventWorkspace);
+  }, [loadEventWorkspace]);
 
-    try {
-      await api.post("/checkin/scan", { ticketNumber: ticketNumber.trim() });
-      toast.success("QR ticket checked in");
-      setTicketNumber("");
-    } catch (error) {
-      toast.error(getApiMessage(error, "Check-in failed"));
-    } finally {
-      setSaving(false);
+  useEffect(() => {
+    if (!selectedEventId || !["student", "organizer", "admin"].includes(role)) {
+      return undefined;
     }
-  };
+
+    let activeSocket;
+    let mounted = true;
+
+    getSocket()
+      .then((socket) => {
+        if (!mounted) {
+          return;
+        }
+
+        activeSocket = socket;
+        activeSocket.emit("join-event", selectedEventId);
+        activeSocket.on("attendance:update", loadEventWorkspace);
+      })
+      .catch(() => {});
+
+    return () => {
+      mounted = false;
+
+      if (activeSocket) {
+        activeSocket.off("attendance:update", loadEventWorkspace);
+      }
+    };
+  }, [loadEventWorkspace, role, selectedEventId]);
 
   const generateCertificate = async (event) => {
     event.preventDefault();
@@ -783,6 +955,30 @@ function Dashboard({ adminOnly = false }) {
       setBookingId("");
     } catch (error) {
       toast.error(getApiMessage(error, "Certificate generation failed"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateRegistrationSeat = async (registrationId, seatNumber) => {
+    if (!selectedEventId || !registrationId) {
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const response = await api.patch(`/organizer/events/${selectedEventId}/registrations/${registrationId}/seat`, {
+        seatNumber,
+      });
+      const updatedRegistration = response.data.registration;
+
+      setRegistrations((current) =>
+        current.map((registration) => (registration._id === updatedRegistration._id ? updatedRegistration : registration))
+      );
+      toast.success(response.data.message || "Seat updated");
+    } catch (error) {
+      toast.error(getApiMessage(error, "Seat update failed"));
     } finally {
       setSaving(false);
     }
@@ -920,16 +1116,21 @@ function Dashboard({ adminOnly = false }) {
   const now = new Date();
   const upcomingBookings = bookings.filter((booking) => new Date(booking.event?.eventDate || 0) >= now);
   const pastBookings = bookings.filter((booking) => new Date(booking.event?.eventDate || 0) < now);
+  const activeSection = dashboardSections.some((item) => item.id === activeDashboardSection)
+    ? activeDashboardSection
+    : dashboardSections[0]?.id;
+  const displayName = user.name || "User";
+  const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
 
   return (
-    <section className="section-content page-top">
-      <Container>
+    <section className="section-content page-top dashboard-page">
+      <Container className="dashboard-container">
         <SectionTitle
-          title={adminOnly ? "Admin Console" : `Welcome, ${user.name}`}
+          title={displayName}
           subtitle={
             adminOnly
-              ? "Manage users, approvals, and platform activity."
-              : `${role.charAt(0).toUpperCase() + role.slice(1)} workspace for Campus Event Hub.`
+              ? "Admin dashboard for users, approvals, and platform activity."
+              : `${roleLabel} dashboard for Campus Event Hub.`
           }
         />
 
@@ -939,419 +1140,489 @@ function Dashboard({ adminOnly = false }) {
           ))}
         </div>
 
-        <div className="dashboard-grid">
+        <div className={`dashboard-workspace${dashboardSidebarCollapsed ? " sidebar-collapsed" : ""}`}>
+          <DashboardSidebar
+            activeSection={activeSection}
+            collapsed={dashboardSidebarCollapsed}
+            items={dashboardSections}
+            onSelect={setActiveDashboardSection}
+            onToggle={() => setDashboardSidebarCollapsed((current) => !current)}
+          />
+
+          <div className="dashboard-grid dashboard-content-grid">
           {role === "student" && (
             <>
-              <CoordinatorRequestsPanel
-                onRespond={respondCoordinatorRequest}
-                requests={coordinatorRequests}
-                saving={saving}
-              />
+              <DashboardSection active={activeSection === "requests"}>
+                <CoordinatorRequestsPanel
+                  onRespond={respondCoordinatorRequest}
+                  requests={coordinatorRequests}
+                  saving={saving}
+                />
+              </DashboardSection>
 
-              <GlassCard className="dashboard-panel wide-panel">
-                <h2>My Events</h2>
-                {bookings.length ? (
-                  <>
-                    <h3>Upcoming</h3>
-                    {(upcomingBookings.length ? upcomingBookings : []).map((booking) => (
-                      <div className="list-row" key={booking._id}>
-                        <div>
-                          <strong>{booking.event?.title || "Event"}</strong>
-                          <span>{booking.ticketNumber}</span>
-                          <small>{booking.paymentStatus} / {booking.attendanceStatus}</small>
-                        </div>
-                        {booking.qrCode && <img alt="QR ticket" className="mini-qr" src={booking.qrCode} />}
-                        <div className="row-actions">
-                          {booking.event?._id && (
-                            <Link className="secondary-button" to={`/events/${booking.event._id}`}>
-                              View event
+              <DashboardSection active={activeSection === "my-events"}>
+                <GlassCard className="dashboard-panel wide-panel">
+                  <h2>My Events</h2>
+                  {bookings.length ? (
+                    <>
+                      <h3>Upcoming</h3>
+                      {(upcomingBookings.length ? upcomingBookings : []).map((booking) => (
+                        <div className="list-row" key={booking._id}>
+                          <div>
+                            <strong>{booking.event?.title || "Event"}</strong>
+                            <span>{booking.ticketNumber}</span>
+                            <small>{booking.paymentStatus} / {booking.attendanceStatus}</small>
+                          </div>
+                          {booking.qrCode && <img alt="QR ticket" className="mini-qr" src={booking.qrCode} />}
+                          <div className="row-actions">
+                            {booking.event?._id && (
+                              <Link className="secondary-button" to={`/events/${booking.event._id}`}>
+                                View event
+                              </Link>
+                            )}
+                            <Link className="secondary-button" to={`/certificates/${booking._id}`}>
+                              Certificate
                             </Link>
-                          )}
-                          <Link className="secondary-button" to={`/certificates/${booking._id}`}>
-                            Certificate
-                          </Link>
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                    {!upcomingBookings.length && <p>No upcoming registrations.</p>}
-                    <h3>Past</h3>
-                    {(pastBookings.length ? pastBookings : []).map((booking) => (
-                      <div className="list-row" key={booking._id}>
-                        <div>
-                          <strong>{booking.event?.title || "Event"}</strong>
-                          <span>{booking.ticketNumber}</span>
-                          <small>{booking.paymentStatus} / {booking.attendanceStatus}</small>
-                        </div>
-                        <div className="row-actions">
-                          {booking.event?._id && (
-                            <Link className="secondary-button" to={`/events/${booking.event._id}`}>
-                              View event
+                      ))}
+                      {!upcomingBookings.length && <p>No upcoming registrations.</p>}
+                      <h3>Past</h3>
+                      {(pastBookings.length ? pastBookings : []).map((booking) => (
+                        <div className="list-row" key={booking._id}>
+                          <div>
+                            <strong>{booking.event?.title || "Event"}</strong>
+                            <span>{booking.ticketNumber}</span>
+                            <small>{booking.paymentStatus} / {booking.attendanceStatus}</small>
+                          </div>
+                          <div className="row-actions">
+                            {booking.event?._id && (
+                              <Link className="secondary-button" to={`/events/${booking.event._id}`}>
+                                View event
+                              </Link>
+                            )}
+                            <Link className="secondary-button" to={`/certificates/${booking._id}`}>
+                              Certificate
                             </Link>
-                          )}
-                          <Link className="secondary-button" to={`/certificates/${booking._id}`}>
-                            Certificate
-                          </Link>
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                    {!pastBookings.length && <p>No past registrations.</p>}
-                  </>
-                ) : (
-                  <p>No registrations yet.</p>
-                )}
-              </GlassCard>
+                      ))}
+                      {!pastBookings.length && <p>No past registrations.</p>}
+                    </>
+                  ) : (
+                    <p>No registrations yet.</p>
+                  )}
+                </GlassCard>
+              </DashboardSection>
 
               {events.length > 0 && (
                 <>
+                  <DashboardSection active={activeSection === "coordinator-events"}>
+                    <GlassCard className="dashboard-panel wide-panel">
+                      <h2>Coordinator Events</h2>
+                      {events.map((event) => (
+                        <div className="list-row" key={event._id}>
+                          <div>
+                            <strong>{event.title}</strong>
+                            <span>{event.status} / {event.isPublished ? "Published" : "Not published"}</span>
+                            <small>{getEventTimingLabel(event)}</small>
+                          </div>
+                          <div className="row-actions">
+                            <Link className="secondary-button" to={`/events/${event._id}`}>
+                              View event
+                            </Link>
+                            <button className="secondary-button" onClick={() => setSelectedEventId(event._id)} type="button">
+                              View attendance
+                            </button>
+                            <Link className="primary-button" to={`/events/${event._id}/settings`}>
+                              Event Settings
+                            </Link>
+                          </div>
+                        </div>
+                      ))}
+                    </GlassCard>
+                  </DashboardSection>
+
+                  <DashboardSection active={activeSection === "attendance"}>
+                    <AttendanceRoster
+                      eventOptions={events}
+                      onSelectEvent={setSelectedEventId}
+                      onSelectRegistration={setSelectedRegistrationId}
+                      onUpdateSeat={updateRegistrationSeat}
+                      registrations={registrations}
+                      saving={saving}
+                      selectedEventId={selectedEventId}
+                      selectedRegistrationId={selectedRegistrationId}
+                    />
+                  </DashboardSection>
+
+                  <DashboardSection active={activeSection === "scanner"}>
+                    <GlassCard className="dashboard-panel wide-panel scanner-dashboard-panel">
+                      <ProfessionalQRScanner
+                        eventId={selectedEventId}
+                        onMarked={loadEventWorkspace}
+                      />
+                    </GlassCard>
+                  </DashboardSection>
+
+                  <DashboardSection active={activeSection === "certificates"}>
+                    <GlassCard className="dashboard-panel compact-action-panel">
+                      <h2>Coordinator Certificates</h2>
+                      <form className="action-form" onSubmit={generateCertificate}>
+                        <input onChange={(event) => setBookingId(event.target.value)} placeholder="Booking ID" value={bookingId} />
+                        <button className="secondary-button" disabled={saving} type="submit">
+                          Generate certificate
+                        </button>
+                      </form>
+                    </GlassCard>
+                  </DashboardSection>
+
+                  <DashboardSection active={activeSection === "analytics"}>
+                    <GlassCard className="dashboard-panel">
+                      <h2>Coordinator Analytics</h2>
+                      <select onChange={(event) => setSelectedEventId(event.target.value)} value={selectedEventId}>
+                        {events.map((event) => (
+                          <option key={event._id} value={event._id}>{event.title}</option>
+                        ))}
+                      </select>
+                      <div className="analytics-counters">
+                        <strong>{analytics?.totalRegistrations || 0} registrations</strong>
+                        <strong>{analytics?.attendanceRate || 0}% attendance</strong>
+                        <strong>Rs {analytics?.revenue || 0}</strong>
+                      </div>
+                      <EventAnalyticsCharts analytics={analytics} />
+                    </GlassCard>
+                  </DashboardSection>
+
+                  <DashboardSection active={activeSection === "operations"}>
+                    <OperationsPanel events={events} registrations={registrations} />
+                  </DashboardSection>
+                </>
+              )}
+
+              <DashboardSection active={activeSection === "profile"}>
+                <GlassCard className="dashboard-panel">
+                  <h2>Profile Details</h2>
+                  <div className="profile-lines">
+                    <span>{user.name}</span>
+                    <span>{user.email}</span>
+                    <span>{user.college || "Geeta University"}</span>
+                    <span>{formatDate(user.dateOfBirth) || "Date of birth not added"}</span>
+                    <span>{user.rollNumber || "Roll number not added"}</span>
+                    <span>{user.branch || "Branch not added"}</span>
+                  </div>
+                  <Link className="primary-button" to="/profile">
+                    View profile
+                  </Link>
+                </GlassCard>
+              </DashboardSection>
+            </>
+          )}
+
+          {role === "organizer" && (
+            <>
+              <DashboardSection active={activeSection === "requests"}>
+                <CoordinatorRequestsPanel
+                  onRespond={respondCoordinatorRequest}
+                  requests={coordinatorRequests}
+                  saving={saving}
+                />
+              </DashboardSection>
+
+              <DashboardSection active={activeSection === "workspace"}>
+                {user.organizerStatus !== "Approved" ? (
+                  <GlassCard className="empty-state wide-panel">
+                    <h2>Organizer approval pending</h2>
+                    <p>Your organizer tools unlock after an admin approves your account.</p>
+                  </GlassCard>
+                ) : (
                   <GlassCard className="dashboard-panel wide-panel">
-                    <h2>Coordinator Events</h2>
-                    {events.map((event) => (
+                    <div className="panel-head">
+                      <div>
+                        <h2>{displayName}'s Workspace</h2>
+                        <p>Create events, manage assigned events, scan QR tickets, and review analytics.</p>
+                      </div>
+                      <Link className="primary-button" to="/events/create">
+                        + Create Event
+                      </Link>
+                    </div>
+                  </GlassCard>
+                )}
+              </DashboardSection>
+
+              <DashboardSection active={activeSection === "events"}>
+                <GlassCard className="dashboard-panel wide-panel">
+                  <h2>My Events List</h2>
+                  {events.length ? (
+                    events.map((event) => (
                       <div className="list-row" key={event._id}>
                         <div>
                           <strong>{event.title}</strong>
                           <span>{event.status} / {event.isPublished ? "Published" : "Not published"}</span>
-                          <small>{getEventTimingLabel(event)}</small>
+                          <small>{getEventTimingLabel(event)} / {event.availableSeats} of {event.totalSeats} seats available</small>
                         </div>
                         <div className="row-actions">
                           <Link className="secondary-button" to={`/events/${event._id}`}>
                             View event
                           </Link>
                           <button className="secondary-button" onClick={() => setSelectedEventId(event._id)} type="button">
-                            View attendance
+                            View registrations
                           </button>
                           <Link className="primary-button" to={`/events/${event._id}/settings`}>
                             Event Settings
                           </Link>
                         </div>
                       </div>
-                    ))}
-                  </GlassCard>
+                    ))
+                  ) : (
+                    <p>No organizer events yet.</p>
+                  )}
+                </GlassCard>
+              </DashboardSection>
 
-                  <AttendanceRoster
-                    eventOptions={events}
-                    onSelectEvent={setSelectedEventId}
-                    onSelectRegistration={setSelectedRegistrationId}
-                    registrations={registrations}
-                    selectedEventId={selectedEventId}
-                    selectedRegistrationId={selectedRegistrationId}
+              <DashboardSection active={activeSection === "attendance"}>
+                <AttendanceRoster
+                  eventOptions={events}
+                  onSelectEvent={setSelectedEventId}
+                  onSelectRegistration={setSelectedRegistrationId}
+                  onUpdateSeat={updateRegistrationSeat}
+                  registrations={registrations}
+                  saving={saving}
+                  selectedEventId={selectedEventId}
+                  selectedRegistrationId={selectedRegistrationId}
+                />
+              </DashboardSection>
+
+              <DashboardSection active={activeSection === "scanner"}>
+                <GlassCard className="dashboard-panel wide-panel scanner-dashboard-panel">
+                  <ProfessionalQRScanner
+                    eventId={selectedEventId}
+                    onMarked={loadEventWorkspace}
                   />
-
-                  <GlassCard className="dashboard-panel compact-action-panel">
-                    <h2>Coordinator Check-in</h2>
-                    <form className="action-form" onSubmit={checkInTicket}>
-                      <label className="scan-box">
-                        <QrCode />
-                        <input onChange={(event) => setTicketNumber(event.target.value)} placeholder="Ticket number from QR" value={ticketNumber} />
-                      </label>
-                      <button className="primary-button" disabled={saving} type="submit">
-                        Mark attendance
-                      </button>
-                    </form>
-                  </GlassCard>
-
-                  <GlassCard className="dashboard-panel compact-action-panel">
-                    <h2>Coordinator Certificates</h2>
-                    <form className="action-form" onSubmit={generateCertificate}>
-                      <input onChange={(event) => setBookingId(event.target.value)} placeholder="Booking ID" value={bookingId} />
-                      <button className="secondary-button" disabled={saving} type="submit">
-                        Generate certificate
-                      </button>
-                    </form>
-                  </GlassCard>
-
-                  <GlassCard className="dashboard-panel">
-                    <h2>Coordinator Analytics</h2>
-                    <select onChange={(event) => setSelectedEventId(event.target.value)} value={selectedEventId}>
-                      {events.map((event) => (
-                        <option key={event._id} value={event._id}>{event.title}</option>
-                      ))}
-                    </select>
-                    <div className="analytics-counters">
-                      <strong>{analytics?.totalRegistrations || 0} registrations</strong>
-                      <strong>{analytics?.attendanceRate || 0}% attendance</strong>
-                      <strong>Rs {analytics?.revenue || 0}</strong>
-                    </div>
-                    <EventAnalyticsCharts analytics={analytics} />
-                  </GlassCard>
-
-                  <OperationsPanel events={events} registrations={registrations} />
-                </>
-              )}
-
-              <GlassCard className="dashboard-panel">
-                <h2>Profile Details</h2>
-                <div className="profile-lines">
-                  <span>{user.name}</span>
-                  <span>{user.email}</span>
-                  <span>{user.college || "Geeta University"}</span>
-                  <span>{formatDate(user.dateOfBirth) || "Date of birth not added"}</span>
-                  <span>{user.rollNumber || "Roll number not added"}</span>
-                  <span>{user.branch || "Branch not added"}</span>
-                </div>
-                <Link className="primary-button" to="/profile">
-                  View profile
-                </Link>
-              </GlassCard>
-            </>
-          )}
-
-          {role === "organizer" && (
-            <>
-              <CoordinatorRequestsPanel
-                onRespond={respondCoordinatorRequest}
-                requests={coordinatorRequests}
-                saving={saving}
-              />
-
-              {user.organizerStatus !== "Approved" ? (
-                <GlassCard className="empty-state wide-panel">
-                  <h2>Organizer approval pending</h2>
-                  <p>Your organizer tools unlock after an admin approves your account.</p>
                 </GlassCard>
-              ) : (
-                <GlassCard className="dashboard-panel wide-panel">
-                  <div className="panel-head">
-                    <div>
-                      <h2>Organizer Workspace</h2>
-                      <p>Create events, manage assigned events, scan QR tickets, and review analytics.</p>
-                    </div>
-                    <Link className="primary-button" to="/events/create">
-                      + Create Event
-                    </Link>
+              </DashboardSection>
+
+              <DashboardSection active={activeSection === "analytics"}>
+                <GlassCard className="dashboard-panel">
+                  <h2>Event Analytics</h2>
+                  <select onChange={(event) => setSelectedEventId(event.target.value)} value={selectedEventId}>
+                    {events.map((event) => (
+                      <option key={event._id} value={event._id}>{event.title}</option>
+                    ))}
+                  </select>
+                  <div className="analytics-counters">
+                    <strong>{analytics?.totalRegistrations || 0} registrations</strong>
+                    <strong>{analytics?.attendanceRate || 0}% attendance</strong>
+                    <strong>Rs {analytics?.revenue || 0}</strong>
                   </div>
+                  <EventAnalyticsCharts analytics={analytics} />
                 </GlassCard>
-              )}
+              </DashboardSection>
 
-              <GlassCard className="dashboard-panel wide-panel">
-                <h2>My Events List</h2>
-                {events.length ? (
-                  events.map((event) => (
-                    <div className="list-row" key={event._id}>
-                      <div>
-                        <strong>{event.title}</strong>
-                        <span>{event.status} / {event.isPublished ? "Published" : "Not published"}</span>
-                        <small>{getEventTimingLabel(event)} / {event.availableSeats} of {event.totalSeats} seats available</small>
-                      </div>
-                      <div className="row-actions">
-                        <Link className="secondary-button" to={`/events/${event._id}`}>
-                          View event
-                        </Link>
-                        <button className="secondary-button" onClick={() => setSelectedEventId(event._id)} type="button">
-                          View registrations
-                        </button>
-                        <Link className="primary-button" to={`/events/${event._id}/settings`}>
-                          Event Settings
-                        </Link>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p>No organizer events yet.</p>
-                )}
-              </GlassCard>
+              <DashboardSection active={activeSection === "operations"}>
+                <OperationsPanel events={events} registrations={registrations} />
+              </DashboardSection>
 
-              <AttendanceRoster
-                eventOptions={events}
-                onSelectEvent={setSelectedEventId}
-                onSelectRegistration={setSelectedRegistrationId}
-                registrations={registrations}
-                selectedEventId={selectedEventId}
-                selectedRegistrationId={selectedRegistrationId}
-              />
-
-              <GlassCard className="dashboard-panel compact-action-panel">
-                <h2>Check-in Scanner</h2>
-                <form className="action-form" onSubmit={checkInTicket}>
-                  <label className="scan-box">
-                    <QrCode />
-                    <input onChange={(event) => setTicketNumber(event.target.value)} placeholder="Ticket number from QR" value={ticketNumber} />
-                  </label>
-                  <button className="primary-button" disabled={saving} type="submit">
-                    Mark attendance
-                  </button>
-                </form>
-              </GlassCard>
-
-              <GlassCard className="dashboard-panel">
-                <h2>Event Analytics</h2>
-                <select onChange={(event) => setSelectedEventId(event.target.value)} value={selectedEventId}>
-                  {events.map((event) => (
-                    <option key={event._id} value={event._id}>{event.title}</option>
-                  ))}
-                </select>
-                <div className="analytics-counters">
-                  <strong>{analytics?.totalRegistrations || 0} registrations</strong>
-                  <strong>{analytics?.attendanceRate || 0}% attendance</strong>
-                  <strong>Rs {analytics?.revenue || 0}</strong>
-                </div>
-                <EventAnalyticsCharts analytics={analytics} />
-              </GlassCard>
-
-              <OperationsPanel events={events} registrations={registrations} />
-
-              <GlassCard className="dashboard-panel compact-action-panel">
-                <h2>Certificates</h2>
-                <form className="action-form" onSubmit={generateCertificate}>
-                  <input onChange={(event) => setBookingId(event.target.value)} placeholder="Booking ID" value={bookingId} />
-                  <button className="secondary-button" disabled={saving} type="submit">
-                    Generate certificate
-                  </button>
-                </form>
-              </GlassCard>
+              <DashboardSection active={activeSection === "certificates"}>
+                <GlassCard className="dashboard-panel compact-action-panel">
+                  <h2>Certificates</h2>
+                  <form className="action-form" onSubmit={generateCertificate}>
+                    <input onChange={(event) => setBookingId(event.target.value)} placeholder="Booking ID" value={bookingId} />
+                    <button className="secondary-button" disabled={saving} type="submit">
+                      Generate certificate
+                    </button>
+                  </form>
+                </GlassCard>
+              </DashboardSection>
             </>
           )}
 
           {role === "admin" && (
             <>
-              <GlassCard className="dashboard-panel wide-panel">
-                <div className="panel-head">
-                  <div>
-                    <h2>Platform Analytics</h2>
-                    <p>Admin-wide snapshot of users, approvals, revenue, attendance, and bookings.</p>
+              <DashboardSection active={activeSection === "analytics"}>
+                <GlassCard className="dashboard-panel wide-panel">
+                  <div className="panel-head">
+                    <div>
+                      <h2>Platform Analytics</h2>
+                      <p>Admin-wide snapshot of users, approvals, revenue, attendance, and bookings.</p>
+                    </div>
+                    <Link className="primary-button" to="/events/create">
+                      + Create Event
+                    </Link>
                   </div>
-                  <Link className="primary-button" to="/events/create">
-                    + Create Event
-                  </Link>
-                </div>
-                <div className="analytics-counters">
-                  <strong>{dashboard.totalUsers || 0} users</strong>
-                  <strong>{dashboard.totalStudents || 0} students</strong>
-                  <strong>{dashboard.totalOrganizers || 0} organizers</strong>
-                  <strong>{dashboard.pendingOrganizers || 0} pending organizers</strong>
-                  <strong>{dashboard.totalBookings || 0} bookings</strong>
-                  <strong>Rs {dashboard.revenue || 0}</strong>
-                </div>
-                <PlatformAnalyticsCharts dashboard={dashboard} />
-              </GlassCard>
+                  <div className="analytics-counters">
+                    <strong>{dashboard.totalUsers || 0} users</strong>
+                    <strong>{dashboard.totalStudents || 0} students</strong>
+                    <strong>{dashboard.totalOrganizers || 0} organizers</strong>
+                    <strong>{dashboard.pendingOrganizers || 0} pending organizers</strong>
+                    <strong>{dashboard.totalBookings || 0} bookings</strong>
+                    <strong>Rs {dashboard.revenue || 0}</strong>
+                  </div>
+                  <PlatformAnalyticsCharts dashboard={dashboard} />
+                </GlassCard>
+              </DashboardSection>
 
-              <AttendanceHeatmap />
-              <OperationsPanel events={adminEvents} registrations={registrations} />
+              <DashboardSection active={activeSection === "operations"}>
+                <AttendanceHeatmap />
+                <OperationsPanel events={adminEvents} registrations={registrations} />
+              </DashboardSection>
 
-              <GlassCard className="dashboard-panel wide-panel">
-                <h2>Approve Events</h2>
-                {adminEvents.length ? (
-                  adminEvents.map((event) => (
-                    <div className="list-row" key={event._id}>
-                      <div>
-                        <strong>{event.title}</strong>
-                        <span>{event.status} by {event.organizer?.name || "Organizer"}</span>
-                        <small>{getEventTimingLabel(event)} / {event.isPublished ? "Published" : "Not published"}</small>
+              <DashboardSection active={activeSection === "approvals"}>
+                <GlassCard className="dashboard-panel wide-panel">
+                  <h2>Approve Events</h2>
+                  {adminEvents.length ? (
+                    adminEvents.map((event) => (
+                      <div className="list-row" key={event._id}>
+                        <div>
+                          <strong>{event.title}</strong>
+                          <span>{event.status} by {event.organizer?.name || "Organizer"}</span>
+                          <small>{getEventTimingLabel(event)} / {event.isPublished ? "Published" : "Not published"}</small>
+                        </div>
+                        {event.status === "Pending" ? (
+                          <div className="row-actions">
+                            <Link className="secondary-button" to={`/events/${event._id}`}>
+                              View event
+                            </Link>
+                            <Link className="secondary-button" to={`/events/${event._id}/settings`}>
+                              Event Settings
+                            </Link>
+                            <button
+                              className="secondary-button"
+                              disabled={saving}
+                              onClick={() => updateStatus(event._id, "Rejected")}
+                              type="button"
+                            >
+                              Reject
+                            </button>
+                            <button
+                              className="primary-button"
+                              disabled={saving}
+                              onClick={() => updateStatus(event._id, "Approved")}
+                              type="button"
+                            >
+                              Approve
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="row-actions">
+                            <Link className="secondary-button" to={`/events/${event._id}`}>
+                              View event
+                            </Link>
+                            <Link className="secondary-button" to={`/events/${event._id}/settings`}>
+                              Event Settings
+                            </Link>
+                            <span className={`status-pill status-${event.status.toLowerCase()}`}>{event.status}</span>
+                          </div>
+                        )}
                       </div>
-                      {event.status === "Pending" ? (
-                        <div className="row-actions">
-                          <Link className="secondary-button" to={`/events/${event._id}`}>
-                            View event
-                          </Link>
-                          <button
-                            className="secondary-button"
-                            disabled={saving}
-                            onClick={() => updateStatus(event._id, "Rejected")}
-                            type="button"
-                          >
-                            Reject
-                          </button>
+                    ))
+                  ) : (
+                    <p>No events submitted yet.</p>
+                  )}
+                </GlassCard>
+              </DashboardSection>
+
+              <DashboardSection active={activeSection === "attendance"}>
+                <AttendanceRoster
+                  eventOptions={adminEvents}
+                  onSelectEvent={setSelectedEventId}
+                  onSelectRegistration={setSelectedRegistrationId}
+                  onUpdateSeat={updateRegistrationSeat}
+                  registrations={registrations}
+                  saving={saving}
+                  selectedEventId={selectedEventId}
+                  selectedRegistrationId={selectedRegistrationId}
+                />
+              </DashboardSection>
+
+              <DashboardSection active={activeSection === "scanner"}>
+                <GlassCard className="dashboard-panel wide-panel">
+                  <ProfessionalQRScanner
+                    eventId={selectedEventId}
+                    onMarked={loadEventWorkspace}
+                  />
+                </GlassCard>
+              </DashboardSection>
+
+              <DashboardSection active={activeSection === "users"}>
+                <GlassCard className="dashboard-panel wide-panel">
+                  <h2>Manage Users</h2>
+                  {users.map((item) => (
+                    <div className="list-row" key={item._id}>
+                        <div>
+                          <strong>{item.name}</strong>
+                          <span>{item.email}</span>
+                        <small>
+                          {item.role} / {item.isBlocked ? "Blocked" : "Active"}
+                          {item.role === "organizer" ? ` / ${item.organizerStatus || "Pending"}` : ""}
+                        </small>
+                        {item.resumeUrl && (
+                          <a className="inline-link" href={getAssetUrl(item.resumeUrl)} rel="noreferrer" target="_blank">
+                            {item.resumeFileName || "View resume"}
+                          </a>
+                        )}
+                      </div>
+                      <div className="row-actions">
+                        <select
+                          onChange={(event) => updateUser(item._id, { role: event.target.value })}
+                          value={item.role}
+                        >
+                          <option value="student">Student</option>
+                          <option value="organizer">Organizer</option>
+                          <option value="admin">Admin</option>
+                        </select>
+                        <button
+                          className={item.isBlocked ? "primary-button" : "secondary-button"}
+                          disabled={saving}
+                          onClick={() => updateUser(item._id, { isBlocked: !item.isBlocked })}
+                          type="button"
+                        >
+                          {item.isBlocked ? "Unblock" : "Block"}
+                        </button>
+                        {item.role === "organizer" && item.organizerStatus !== "Approved" && (
                           <button
                             className="primary-button"
                             disabled={saving}
-                            onClick={() => updateStatus(event._id, "Approved")}
+                            onClick={() => updateUser(item._id, { organizerStatus: "Approved" })}
                             type="button"
                           >
                             Approve
                           </button>
-                        </div>
-                      ) : (
-                        <div className="row-actions">
-                          <Link className="secondary-button" to={`/events/${event._id}`}>
-                            View event
-                          </Link>
-                          <span className={`status-pill status-${event.status.toLowerCase()}`}>{event.status}</span>
-                        </div>
-                      )}
-                    </div>
-                  ))
-                ) : (
-                  <p>No events submitted yet.</p>
-                )}
-              </GlassCard>
-
-              <AttendanceRoster
-                eventOptions={adminEvents}
-                onSelectEvent={setSelectedEventId}
-                onSelectRegistration={setSelectedRegistrationId}
-                registrations={registrations}
-                selectedEventId={selectedEventId}
-                selectedRegistrationId={selectedRegistrationId}
-              />
-
-              <GlassCard className="dashboard-panel wide-panel">
-                <h2>Manage Users</h2>
-                {users.map((item) => (
-                  <div className="list-row" key={item._id}>
-                      <div>
-                        <strong>{item.name}</strong>
-                        <span>{item.email}</span>
-                      <small>
-                        {item.role} / {item.isBlocked ? "Blocked" : "Active"}
-                        {item.role === "organizer" ? ` / ${item.organizerStatus || "Pending"}` : ""}
-                      </small>
-                    </div>
-                    <div className="row-actions">
-                      <select
-                        onChange={(event) => updateUser(item._id, { role: event.target.value })}
-                        value={item.role}
-                      >
-                        <option value="student">Student</option>
-                        <option value="organizer">Organizer</option>
-                        <option value="admin">Admin</option>
-                      </select>
-                      <button
-                        className={item.isBlocked ? "primary-button" : "secondary-button"}
-                        disabled={saving}
-                        onClick={() => updateUser(item._id, { isBlocked: !item.isBlocked })}
-                        type="button"
-                      >
-                        {item.isBlocked ? "Unblock" : "Block"}
-                      </button>
-                      {item.role === "organizer" && item.organizerStatus !== "Approved" && (
+                        )}
+                        {item.role === "organizer" && item.organizerStatus !== "Rejected" && (
+                          <button
+                            className="secondary-button"
+                            disabled={saving}
+                            onClick={() => updateUser(item._id, { organizerStatus: "Rejected" })}
+                            type="button"
+                          >
+                            Reject
+                          </button>
+                        )}
                         <button
-                          className="primary-button"
-                          disabled={saving}
-                          onClick={() => updateUser(item._id, { organizerStatus: "Approved" })}
+                          className="danger-button"
+                          disabled={saving || item._id === user._id}
+                          onClick={() => removeUser(item)}
                           type="button"
                         >
-                          Approve
+                          Remove
                         </button>
-                      )}
-                      {item.role === "organizer" && item.organizerStatus !== "Rejected" && (
-                        <button
-                          className="secondary-button"
-                          disabled={saving}
-                          onClick={() => updateUser(item._id, { organizerStatus: "Rejected" })}
-                          type="button"
-                        >
-                          Reject
-                        </button>
-                      )}
-                      <button
-                        className="danger-button"
-                        disabled={saving || item._id === user._id}
-                        onClick={() => removeUser(item)}
-                        type="button"
-                      >
-                        Remove
-                      </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </GlassCard>
+                  ))}
+                </GlassCard>
+              </DashboardSection>
             </>
           )}
 
-          <NotificationPanel
-            notifications={notifications}
-            onSelect={openNotification}
-            selectedNotificationId={selectedNotificationId}
-          />
+          <DashboardSection active={activeSection === "notifications"}>
+            <NotificationPanel
+              notifications={notifications}
+              onSelect={openNotification}
+              selectedNotificationId={selectedNotificationId}
+            />
+          </DashboardSection>
+          </div>
         </div>
       </Container>
     </section>

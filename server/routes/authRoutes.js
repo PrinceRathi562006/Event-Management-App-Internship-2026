@@ -19,12 +19,14 @@ const {
   getMyProfile,
   updateProfile,
   uploadProfileImage,
+  uploadResume,
   logout,
 } = authController;
 
 // Middleware
 const { protect } = require("../middleware/authMiddleware");
 const upload = require("../middleware/uploadMiddleware");
+const resumeUpload = require("../middleware/resumeUploadMiddleware");
 const validate = require("../middleware/validationMiddleware");
 
 // =============================================
@@ -194,6 +196,14 @@ router.put(
   protect,
   upload.single("profileImage"),
   uploadProfileImage
+);
+
+// Upload Resume
+router.put(
+  "/profile/resume",
+  protect,
+  resumeUpload.single("resume"),
+  uploadResume
 );
 
 // Change Password

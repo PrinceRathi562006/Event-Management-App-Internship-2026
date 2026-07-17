@@ -114,38 +114,68 @@ function EventDetail() {
     return eventEndDate.getTime() < now;
   }, [event, now]);
 
+  const seatSelectionEnabled = event?.seatSelectionEnabled !== false;
+
   const startPayment = async (booking) => {
     if (!window.Razorpay) {
       toast.error("Razorpay checkout is not available. Check your internet connection.");
       return;
     }
 
-    if (!import.meta.env.VITE_RAZORPAY_KEY_ID) {
-      toast.error("Razorpay public key is missing in client .env.");
+    const orderResponse = await api.post("/payments/create-order", { bookingId: booking._id });
+    const order = orderResponse.data.order;
+    const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID || orderResponse.data.keyId;
+
+    if (!razorpayKey) {
+      toast.error("Razorpay public key is missing.");
       return;
     }
 
-    const orderResponse = await api.post("/payments/create-order", { bookingId: booking._id });
-    const order = orderResponse.data.order;
-
     const checkout = new window.Razorpay({
-      key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+      key: razorpayKey,
       amount: order.amount,
       currency: order.currency,
       name: "Event Organizer",
       description: event.title,
       order_id: order.id,
       handler: async (paymentResponse) => {
-        await api.post("/payments/verify", paymentResponse);
-        toast.success("Payment completed");
-        setTicket((current) => ({ ...current, paymentStatus: "Paid", isPaid: true }));
+        try {
+          await api.post("/payments/verify", paymentResponse);
+          toast.success("Payment completed");
+          setTicket((current) => ({ ...current, paymentStatus: "Paid", isPaid: true }));
+        } catch (error) {
+          toast.error(getApiMessage(error, "Payment verification failed"));
+        }
       },
       prefill: {
-        email: "",
+        name: user?.name || "",
+        email: user?.email || "",
+        contact: user?.phone || "",
+      },
+      modal: {
+        ondismiss: () => {
+          toast("Payment window closed");
+        },
       },
       theme: {
         color: "#2563eb",
       },
+    });
+
+    checkout.on("payment.failed", async (response) => {
+      const reason = response?.error?.description || response?.error?.reason || "Payment failed";
+
+      try {
+        await api.post("/payments/failure", {
+          razorpay_order_id: order.id,
+          reason,
+        });
+      } catch {
+        // Failure logging should not block the user from retrying payment.
+      }
+
+      toast.error(reason);
+      setTicket((current) => ({ ...current, paymentStatus: "Failed" }));
     });
 
     checkout.open();
@@ -155,7 +185,9 @@ function EventDetail() {
     setSaving(true);
 
     try {
-      const response = await api.post(`/bookings/${event._id}`, { seatNumber: selectedSeat });
+      const response = await api.post(`/bookings/${event._id}`, {
+        seatNumber: seatSelectionEnabled ? selectedSeat : "",
+      });
       const booking = response.data.booking;
       setTicket(booking);
 
@@ -312,7 +344,9 @@ function EventDetail() {
         )}
 
         <div className="experience-grid">
-          <SeatPicker availableSeats={event.availableSeats} onSelectSeat={setSelectedSeat} selectedSeat={selectedSeat} />
+          {seatSelectionEnabled && (
+            <SeatPicker availableSeats={event.availableSeats} onSelectSeat={setSelectedSeat} selectedSeat={selectedSeat} />
+          )}
           <AttendeeCounter event={event} />
           <EventTimeline event={event} />
           <BadgeGallery badges={event.badges?.length ? event.badges : undefined} />

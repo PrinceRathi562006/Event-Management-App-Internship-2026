@@ -3,7 +3,9 @@ import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { Download, Wand2 } from "lucide-react";
+import CinematicHeroBackground from "../components/features/CinematicHeroBackground";
 import Container from "../components/ui/Container";
+import FileUploadField from "../components/ui/FileUploadField";
 import GlassCard from "../components/ui/GlassCard";
 import SectionTitle from "../components/ui/SectionTitle";
 import api from "../services/api";
@@ -30,6 +32,7 @@ const emptyEvent = {
   startTime: "",
   endTime: "",
   totalSeats: "",
+  seatSelectionEnabled: true,
   price: "",
   isPaid: "false",
   registrationDeadline: "",
@@ -158,6 +161,10 @@ function CreateEvent() {
     }));
   };
 
+  const removeGalleryFile = (_, index) => {
+    setGalleryImages((current) => current.filter((__, itemIndex) => itemIndex !== index));
+  };
+
   const submitEvent = async (event) => {
     event.preventDefault();
     setSaving(true);
@@ -248,7 +255,8 @@ function CreateEvent() {
   }
 
   return (
-    <section className="section-content page-top">
+    <section className="section-content page-top scene-page">
+      <CinematicHeroBackground className="scene-page-background" variant="registration" />
       <Container>
         <SectionTitle title="Create Event" subtitle="Submit a complete event for approval and publishing." />
         <GlassCard className="dashboard-panel">
@@ -294,14 +302,19 @@ function CreateEvent() {
                 </button>
               </div>
             </div>
-            <label className="file-field">
-              Banner image
-              <input accept="image/*" onChange={(event) => setBannerImage(event.target.files?.[0] || null)} type="file" />
-            </label>
-            <label className="file-field">
-              Gallery images
-              <input accept="image/*" multiple onChange={(event) => setGalleryImages(Array.from(event.target.files || []))} type="file" />
-            </label>
+            <FileUploadField
+              files={bannerImage ? [bannerImage] : []}
+              label="Banner image"
+              onChange={setBannerImage}
+              onRemoveFile={() => setBannerImage(null)}
+            />
+            <FileUploadField
+              files={galleryImages}
+              label="Gallery images"
+              multiple
+              onChange={setGalleryImages}
+              onRemoveFile={removeGalleryFile}
+            />
             <input onChange={(event) => update("venue", event.target.value)} placeholder="Venue" value={form.venue} />
             <div className="form-grid">
               <label className="input-label">
@@ -324,6 +337,10 @@ function CreateEvent() {
                 <option value="true">Paid</option>
               </select>
             </div>
+            <label className="check-field">
+              <input checked={form.seatSelectionEnabled} onChange={(event) => update("seatSelectionEnabled", event.target.checked)} type="checkbox" />
+              Enable choose seat for this event
+            </label>
             {form.isPaid === "true" && (
               <input min="0" onChange={(event) => update("price", event.target.value)} placeholder="Exact booking fee in INR" step="1" type="number" value={form.price} />
             )}
@@ -345,10 +362,12 @@ function CreateEvent() {
 
             <div className="certificate-branding-panel">
               <h2>Certificate Branding</h2>
-              <label className="file-field">
-                Organizer signature image
-                <input accept="image/*" onChange={(event) => setCertificateSignature(event.target.files?.[0] || null)} type="file" />
-              </label>
+              <FileUploadField
+                files={certificateSignature ? [certificateSignature] : []}
+                label="Organizer signature image"
+                onChange={setCertificateSignature}
+                onRemoveFile={() => setCertificateSignature(null)}
+              />
               <div className="partner-company-list">
                 {form.partnerCompanies.map((company, index) => (
                   <div className="form-grid" key={index}>

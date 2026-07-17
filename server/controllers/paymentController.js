@@ -6,17 +6,19 @@ const Booking = require("../models/Booking");
 const Event = require("../models/Event");
 const Notification = require("../models/Notification");
 
+const getRazorpayKeyId = () => process.env.RAZORPAY_KEY_ID;
 const getRazorpaySecret = () => process.env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_SECRET;
 
 const getRazorpay = () => {
+  const keyId = getRazorpayKeyId();
   const keySecret = getRazorpaySecret();
 
-  if (!process.env.RAZORPAY_KEY_ID || !keySecret) {
+  if (!keyId || !keySecret) {
     throw new Error("Razorpay keys are missing. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.");
   }
 
   return new Razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID,
+    key_id: keyId,
     key_secret: keySecret,
   });
 };
@@ -39,10 +41,31 @@ exports.createOrder = async (req, res, next) => {
       });
     }
 
+    if (booking.user.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: "Unauthorized booking payment.",
+      });
+    }
+
+    if (booking.bookingStatus === "Cancelled") {
+      return res.status(400).json({
+        success: false,
+        message: "Cancelled bookings cannot be paid.",
+      });
+    }
+
     if (booking.isPaid) {
       return res.status(400).json({
         success: false,
         message: "Payment already completed.",
+      });
+    }
+
+    if (booking.paymentMethod !== "Razorpay" || Number(booking.amount || 0) <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "This booking does not require Razorpay payment.",
       });
     }
 
@@ -54,21 +77,34 @@ exports.createOrder = async (req, res, next) => {
 
     const order = await getRazorpay().orders.create(options);
 
-    await Payment.create({
-      user: booking.user,
-      event: booking.event._id,
-      booking: booking._id,
-      amount: booking.amount,
-      currency: "INR",
-      paymentMethod: "Razorpay",
-      razorpayOrderId: order.id,
-      receipt: options.receipt,
-      status: "Created",
-    });
+    await Payment.findOneAndUpdate(
+      { booking: booking._id },
+      {
+        user: booking.user,
+        event: booking.event._id,
+        booking: booking._id,
+        amount: booking.amount,
+        currency: "INR",
+        paymentMethod: "Razorpay",
+        razorpayOrderId: order.id,
+        razorpayPaymentId: "",
+        razorpaySignature: "",
+        receipt: options.receipt,
+        status: "Created",
+        transactionId: "",
+        failureReason: "",
+      },
+      {
+        new: true,
+        upsert: true,
+        setDefaultsOnInsert: true,
+      }
+    );
 
     return res.status(201).json({
       success: true,
       order,
+      keyId: getRazorpayKeyId(),
     });
 
   } catch (error) {
@@ -114,11 +150,24 @@ exports.verifyPayment = async (req, res, next) => {
       razorpay_signature,
     } = req.body;
 
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return res.status(400).json({
+        success: false,
+        message: "Razorpay payment details are required.",
+      });
+    }
+
+    const keySecret = getRazorpaySecret();
+
+    if (!keySecret) {
+      throw new Error("Razorpay secret is missing. Set RAZORPAY_KEY_SECRET.");
+    }
+
     // Verify Signature
     const generatedSignature = crypto
       .createHmac(
         "sha256",
-        getRazorpaySecret()
+        keySecret
       )
       .update(
         razorpay_order_id + "|" + razorpay_payment_id
@@ -135,6 +184,7 @@ exports.verifyPayment = async (req, res, next) => {
     // Find Payment
     const payment = await Payment.findOne({
       razorpayOrderId: razorpay_order_id,
+      user: req.user._id,
     });
 
     if (!payment) {
@@ -156,6 +206,13 @@ exports.verifyPayment = async (req, res, next) => {
     const booking = await Booking.findById(
       payment.booking
     );
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: "Booking not found.",
+      });
+    }
 
     booking.isPaid = true;
     booking.paymentId = razorpay_payment_id;
@@ -198,8 +255,16 @@ exports.paymentFailed = async (req, res, next) => {
       reason,
     } = req.body;
 
+    if (!razorpay_order_id) {
+      return res.status(400).json({
+        success: false,
+        message: "Razorpay order id is required.",
+      });
+    }
+
     const payment = await Payment.findOne({
       razorpayOrderId: razorpay_order_id,
+      user: req.user._id,
     });
 
     if (!payment) {
@@ -218,18 +283,20 @@ exports.paymentFailed = async (req, res, next) => {
       payment.booking
     );
 
-    booking.paymentStatus = "Failed";
+    if (booking) {
+      booking.paymentStatus = "Failed";
 
-    await booking.save();
+      await booking.save();
 
-    await Notification.create({
-      user: booking.user,
-      event: booking.event,
-      title: "Payment Failed",
-      message:
-        "Your payment could not be completed. Please try again.",
-      type: "PAYMENT",
-    });
+      await Notification.create({
+        user: booking.user,
+        event: booking.event,
+        title: "Payment Failed",
+        message:
+          "Your payment could not be completed. Please try again.",
+        type: "PAYMENT",
+      });
+    }
 
     return res.status(200).json({
       success: true,

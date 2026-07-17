@@ -113,6 +113,31 @@ const userSchema = new mongoose.Schema(
       default: "",
     },
 
+    resumeUrl: {
+      type: String,
+      default: "",
+    },
+
+    resumePublicId: {
+      type: String,
+      default: "",
+    },
+
+    resumeFileName: {
+      type: String,
+      default: "",
+    },
+
+    resumeMimeType: {
+      type: String,
+      default: "",
+    },
+
+    resumeUploadedAt: {
+      type: Date,
+      default: null,
+    },
+
     // Verification
     isVerified: {
       type: Boolean,

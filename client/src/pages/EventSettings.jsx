@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { useNavigate, useParams } from "react-router-dom";
 import { useSelector } from "react-redux";
+import CinematicHeroBackground from "../components/features/CinematicHeroBackground";
 import Container from "../components/ui/Container";
+import FileUploadField from "../components/ui/FileUploadField";
 import GlassCard from "../components/ui/GlassCard";
 import Loader from "../components/ui/Loader";
 import SectionTitle from "../components/ui/SectionTitle";
@@ -42,6 +44,9 @@ function EventSettings() {
   const [bannerImage, setBannerImage] = useState(null);
   const [galleryImages, setGalleryImages] = useState([]);
   const [certificateSignature, setCertificateSignature] = useState(null);
+  const [removePoster, setRemovePoster] = useState(false);
+  const [removeSignature, setRemoveSignature] = useState(false);
+  const [removedGalleryIds, setRemovedGalleryIds] = useState([]);
   const [coordinatorSearch, setCoordinatorSearch] = useState({ type: "student", q: "" });
   const [coordinatorResults, setCoordinatorResults] = useState([]);
   const [selectedCoordinators, setSelectedCoordinators] = useState({ students: [], organizers: [] });
@@ -53,6 +58,12 @@ function EventSettings() {
       .then((response) => {
         const event = response.data.event;
         setEventInfo(event);
+        setRemovePoster(false);
+        setRemoveSignature(false);
+        setRemovedGalleryIds([]);
+        setBannerImage(null);
+        setGalleryImages([]);
+        setCertificateSignature(null);
         setForm({
           title: event.title || "",
           description: event.description || "",
@@ -62,6 +73,7 @@ function EventSettings() {
           startTime: event.startTime || "",
           endTime: event.endTime || "",
           totalSeats: event.totalSeats || "",
+          seatSelectionEnabled: event.seatSelectionEnabled !== false,
           price: event.price || "",
           isPaid: event.isPaid ? "true" : "false",
           featured: Boolean(event.featured),
@@ -131,6 +143,30 @@ function EventSettings() {
     }));
   };
 
+  const removeGalleryFile = (_, index) => {
+    setGalleryImages((current) => current.filter((__, itemIndex) => itemIndex !== index));
+  };
+
+  const currentPosterFiles = eventInfo?.poster && !removePoster
+    ? [{ id: eventInfo.posterPublicId || eventInfo.poster, name: "Current banner image", url: eventInfo.poster }]
+    : [];
+  const currentSignatureFiles = eventInfo?.certificateSignature && !removeSignature
+    ? [
+        {
+          id: eventInfo.certificateSignaturePublicId || eventInfo.certificateSignature,
+          name: "Current signature image",
+          url: eventInfo.certificateSignature,
+        },
+      ]
+    : [];
+  const currentGalleryFiles = (eventInfo?.galleryImages || [])
+    .map((image, index) => ({
+      id: image.publicId || image._id || image.url || `gallery-${index}`,
+      name: `Gallery image ${index + 1}`,
+      url: image.url,
+    }))
+    .filter((image) => !removedGalleryIds.includes(String(image.id)));
+
   const sendCoordinatorRequests = async () => {
     setSaving(true);
 
@@ -162,12 +198,18 @@ function EventSettings() {
         price: form.isPaid === "true" ? form.price : 0,
         speakers: form.speakers.filter((speaker) => speaker?.name?.trim()),
         partnerCompanies: form.partnerCompanies.filter((company) => company.trim()).map((name) => ({ name })),
+        removePoster,
+        removeCertificateSignature: removeSignature,
+        removeGalleryImages: removedGalleryIds,
       };
 
       if (hasFiles) {
         const payload = new FormData();
         Object.entries(cleanPayload).forEach(([key, value]) => {
-          payload.append(key, ["speakers", "partnerCompanies"].includes(key) ? JSON.stringify(value) : value);
+          payload.append(
+            key,
+            ["speakers", "partnerCompanies", "removeGalleryImages"].includes(key) ? JSON.stringify(value) : value
+          );
         });
 
         if (bannerImage) {
@@ -224,21 +266,36 @@ function EventSettings() {
   }
 
   return (
-    <section className="section-content page-top">
+    <section className="section-content page-top scene-page">
+      <CinematicHeroBackground className="scene-page-background" variant="registration" />
       <Container>
         <SectionTitle title="Event Settings" subtitle="Update banner, details, timing, capacity, price, speakers, gallery, and featured status." />
         <GlassCard className="dashboard-panel">
           <form className="dense-form" onSubmit={saveEvent}>
             <input onChange={(event) => update("title", event.target.value)} placeholder="Title" value={form.title} />
             <textarea onChange={(event) => update("description", event.target.value)} placeholder="Description" value={form.description} />
-            <label className="file-field">
-              Banner image
-              <input accept="image/*" onChange={(event) => setBannerImage(event.target.files?.[0] || null)} type="file" />
-            </label>
-            <label className="file-field">
-              Gallery images
-              <input accept="image/*" multiple onChange={(event) => setGalleryImages(Array.from(event.target.files || []))} type="file" />
-            </label>
+            <FileUploadField
+              currentFiles={currentPosterFiles}
+              files={bannerImage ? [bannerImage] : []}
+              label="Banner image"
+              onChange={(file) => {
+                setBannerImage(file);
+                if (file) {
+                  setRemovePoster(false);
+                }
+              }}
+              onRemoveCurrent={() => setRemovePoster(true)}
+              onRemoveFile={() => setBannerImage(null)}
+            />
+            <FileUploadField
+              currentFiles={currentGalleryFiles}
+              files={galleryImages}
+              label="Gallery images"
+              multiple
+              onChange={setGalleryImages}
+              onRemoveCurrent={(file) => setRemovedGalleryIds((current) => [...current, String(file.id)])}
+              onRemoveFile={removeGalleryFile}
+            />
             <input onChange={(event) => update("venue", event.target.value)} placeholder="Venue" value={form.venue} />
             <div className="form-grid">
               <label className="input-label">
@@ -261,6 +318,10 @@ function EventSettings() {
                 <option value="true">Paid</option>
               </select>
             </div>
+            <label className="check-field">
+              <input checked={form.seatSelectionEnabled} onChange={(event) => update("seatSelectionEnabled", event.target.checked)} type="checkbox" />
+              Enable choose seat for this event
+            </label>
             {form.isPaid === "true" && (
               <input min="0" onChange={(event) => update("price", event.target.value)} placeholder="Exact booking fee in INR" step="1" type="number" value={form.price} />
             )}
@@ -270,13 +331,22 @@ function EventSettings() {
             </label>
             <div className="certificate-branding-panel">
               <h2>Certificate Branding</h2>
-              {eventInfo?.certificateSignature && (
+              {eventInfo?.certificateSignature && !removeSignature && (
                 <img alt="Current organizer signature" className="signature-preview" src={eventInfo.certificateSignature} />
               )}
-              <label className="file-field">
-                Organizer signature image
-                <input accept="image/*" onChange={(event) => setCertificateSignature(event.target.files?.[0] || null)} type="file" />
-              </label>
+              <FileUploadField
+                currentFiles={currentSignatureFiles}
+                files={certificateSignature ? [certificateSignature] : []}
+                label="Organizer signature image"
+                onChange={(file) => {
+                  setCertificateSignature(file);
+                  if (file) {
+                    setRemoveSignature(false);
+                  }
+                }}
+                onRemoveCurrent={() => setRemoveSignature(true)}
+                onRemoveFile={() => setCertificateSignature(null)}
+              />
               <div className="partner-company-list">
                 {form.partnerCompanies.map((company, index) => (
                   <div className="form-grid" key={index}>

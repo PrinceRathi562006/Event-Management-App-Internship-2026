@@ -2,7 +2,10 @@ const Booking = require("../models/Booking");
 const Event = require("../models/Event");
 const User = require("../models/User");
 const Notification = require("../models/Notification");
+const QRSession = require("../models/QRSession");
+const crypto = require("crypto");
 const fs = require("fs");
+const jwt = require("jsonwebtoken");
 const path = require("path");
 
 const { generateQRCode } = require("../utils/qrGenerator");
@@ -89,6 +92,71 @@ const generateBookingId = async () => {
   });
 
   return `EVT-${year}-${String(count + 1).padStart(6, "0")}`;
+};
+
+const getEventEndDate = (event) => {
+  const expiresAt = new Date(event.eventDate);
+  const timeMatch = String(event.endTime || "").match(/^(\d{1,2}):(\d{2})/);
+
+  if (timeMatch) {
+    expiresAt.setHours(Number(timeMatch[1]), Number(timeMatch[2]), 0, 0);
+  } else {
+    expiresAt.setHours(23, 59, 59, 999);
+  }
+
+  return expiresAt;
+};
+
+const hashQRSecret = (value) => crypto.createHash("sha256").update(String(value)).digest("hex");
+
+const createAttendanceQRCode = async ({ booking, event, generatedBy }) => {
+  const expiresAt = getEventEndDate(event);
+  const secret = crypto.randomBytes(24).toString("hex");
+  const token = jwt.sign(
+    {
+      type: "EVENT_ATTENDANCE",
+      userId: booking.user.toString(),
+      registrationId: booking._id.toString(),
+      eventId: event._id.toString(),
+      timestamp: Date.now(),
+      secret,
+    },
+    process.env.QR_ATTENDANCE_SECRET || process.env.JWT_SECRET,
+    {
+      expiresIn: Math.max(Math.floor((expiresAt.getTime() - Date.now()) / 1000), 60),
+      issuer: "event-organizer-attendance",
+    }
+  );
+
+  await QRSession.findOneAndUpdate(
+    {
+      eventId: event._id,
+      userId: booking.user,
+      registrationId: booking._id,
+    },
+    {
+      token,
+      secretHash: hashQRSecret(secret),
+      status: "Generated",
+      generatedBy,
+      expiresAt,
+      isActive: true,
+    },
+    {
+      new: true,
+      upsert: true,
+      setDefaultsOnInsert: true,
+    }
+  );
+
+  return generateQRCode({
+    type: "EVENT_ATTENDANCE",
+    token,
+    bookingId: booking.bookingId,
+    ticketNumber: booking.ticketNumber,
+    registrationId: booking._id.toString(),
+    eventId: event._id.toString(),
+  });
 };
 
 // ======================================================
@@ -194,6 +262,7 @@ exports.bookEvent = async (req, res, next) => {
     }
 
     let booking;
+    const selectedSeat = event.seatSelectionEnabled === false ? "" : String(seatNumber || "").trim();
 
     try {
       booking = await Booking.create({
@@ -205,14 +274,13 @@ exports.bookEvent = async (req, res, next) => {
         isPaid: !event.isPaid,
         paymentMethod: event.isPaid ? "Razorpay" : "Free",
         paymentStatus: event.isPaid ? "Pending" : "Paid",
-        seatNumber,
+        seatNumber: selectedSeat,
       });
 
-      booking.qrCode = await generateQRCode({
-        bookingId: booking.bookingId,
-        userId: req.user._id,
-        eventId: event._id,
-        ticketNumber: booking.ticketNumber,
+      booking.qrCode = await createAttendanceQRCode({
+        booking,
+        event,
+        generatedBy: req.user._id,
       });
       await booking.save();
     } catch (error) {
@@ -304,7 +372,7 @@ exports.getBookingDetails = async (req, res, next) => {
 
     const booking = await findBooking(req.params.id)
       .populate("event")
-      .populate("user", "name email phone profileImage");
+      .populate("user", "name email phone profileImage resumeUrl resumeFileName resumeMimeType resumeUploadedAt");
 
     if (!booking) {
       return res.status(404).json({

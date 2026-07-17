@@ -17,6 +17,14 @@ function formatDateInput(value) {
   return new Date(value).toISOString().slice(0, 10);
 }
 
+const getAssetUrl = (value) => {
+  if (!value) return "";
+  if (value.startsWith("http")) return value;
+  const apiBaseUrl = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:5000/api" : "/api");
+  const apiRoot = apiBaseUrl.replace(/\/api\/?$/, "");
+  return `${apiRoot}${value}`;
+};
+
 function Settings() {
   const dispatch = useDispatch();
   const token = useSelector((state) => state.auth.token);
@@ -24,6 +32,7 @@ function Settings() {
   const [form, setForm] = useState({});
   const [passwords, setPasswords] = useState({ currentPassword: "", newPassword: "" });
   const [profileImage, setProfileImage] = useState(null);
+  const [resumeFile, setResumeFile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -78,9 +87,26 @@ function Settings() {
         };
       }
 
+      if (resumeFile) {
+        const resumePayload = new FormData();
+        resumePayload.append("resume", resumeFile);
+        const resumeResponse = await api.put("/auth/profile/resume", resumePayload, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        response = {
+          data: {
+            user: {
+              ...response.data.user,
+              ...resumeResponse.data.user,
+            },
+          },
+        };
+      }
+
       dispatch(setCredentials({ user: response.data.user, token }));
       setUser(response.data.user);
       setProfileImage(null);
+      setResumeFile(null);
       toast.success("Settings saved");
     } catch (error) {
       toast.error(getApiMessage(error, "Settings update failed"));
@@ -122,7 +148,23 @@ function Settings() {
                   Profile picture
                   <input accept="image/*" onChange={(event) => setProfileImage(event.target.files?.[0] || null)} type="file" />
                 </label>
+                <label className="file-field">
+                  Resume
+                  <input
+                    accept=".pdf,.doc,.docx,.rtf,.txt,.odt"
+                    onChange={(event) => setResumeFile(event.target.files?.[0] || null)}
+                    type="file"
+                  />
+                </label>
               </div>
+              {user?.resumeUrl && (
+                <div className="resume-link-row">
+                  <span>{user.resumeFileName || "Uploaded resume"}</span>
+                  <a className="secondary-button" href={getAssetUrl(user.resumeUrl)} rel="noreferrer" target="_blank">
+                    View resume
+                  </a>
+                </div>
+              )}
 
               <div className="form-grid">
                 <input onChange={(event) => update("name", event.target.value)} placeholder="Name" value={form.name} />

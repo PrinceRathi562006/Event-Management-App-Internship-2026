@@ -243,6 +243,11 @@ const eventSchema = new mongoose.Schema(
       min: 0,
     },
 
+    seatSelectionEnabled: {
+      type: Boolean,
+      default: true,
+    },
+
     // Pricing
     isPaid: {
       type: Boolean,

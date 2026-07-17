@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
 import {
   ArrowRight,
   CalendarCheck,
+  Clock,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
@@ -9,12 +11,14 @@ import {
   MapPin,
   Search,
   ShieldCheck,
+  Sparkles,
   Ticket,
+  Users,
+  X,
 } from "lucide-react";
 import Calendar from "react-calendar";
 import { Link } from "react-router-dom";
-// import hero from "../assets/images/hero.jpg";
-import heroVideo from "../assets/videos/hero2.mp4";
+import CinematicHeroBackground from "../components/features/CinematicHeroBackground";
 import { CountdownBlocks } from "../components/features/EventExperience";
 import Container from "../components/ui/Container";
 import GlassCard from "../components/ui/GlassCard";
@@ -27,6 +31,27 @@ function formatDate(value) {
     month: "short",
     year: "numeric",
   }).format(new Date(value));
+}
+
+function getEventCountdown(value, now) {
+  if (!value) {
+    return "Date soon";
+  }
+
+  const distance = new Date(value).getTime() - now;
+
+  if (distance <= 0) {
+    return "Happening now";
+  }
+
+  const days = Math.floor(distance / 86400000);
+  const hours = Math.floor((distance % 86400000) / 3600000);
+
+  if (days > 0) {
+    return `${days}d ${hours}h`;
+  }
+
+  return `${Math.max(hours, 1)}h left`;
 }
 
 function sameDay(first, second) {
@@ -96,9 +121,47 @@ function Home() {
     [date, events]
   );
   const nextEvent = filteredEvents[0] || featured[0] || events[0];
+  const todayEventsCount = useMemo(
+    () => events.filter((event) => sameDay(new Date(event.eventDate), new Date(now))).length,
+    [events, now]
+  );
+  const sectionVariants = {
+    hidden: { opacity: 0, y: 24 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.55, ease: "easeOut" } },
+  };
+  const listVariants = {
+    hidden: {},
+    visible: { transition: { staggerChildren: 0.08 } },
+  };
+  const cardVariants = {
+    hidden: { opacity: 0, y: 24, scale: 0.98 },
+    visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.45, ease: "easeOut" } },
+  };
 
   return (
     <>
+      <section className="hero-section hero-section-cinematic">
+        <CinematicHeroBackground />
+        <Container className="hero-grid">
+          <div className="hero-copy">
+            <p className="eyebrow">Geeta University Campus Hub</p>
+            <h1>Event Organizer</h1>
+            <p>
+              Discover campus events, reserve seats, manage attendance, collect feedback, and issue certificates
+              through one focused event management system.
+            </p>
+            <div className="hero-actions">
+              <Link className="primary-button" to="/events">
+                Browse events <ArrowRight size={18} />
+              </Link>
+              <Link className="secondary-button hero-secondary-button" to="/register">
+                Create account
+              </Link>
+            </div>
+          </div>
+        </Container>
+      </section>
+
       <section className="home-calendar-section">
         <Container>
           <div className="calendar-layout home-calendar-layout">
@@ -135,38 +198,6 @@ function Home() {
               </Link>
             </GlassCard>
           </div>
-        </Container>
-      </section>
-
-      <section className="hero-section">
-        <Container className="hero-grid">
-          <div className="hero-copy">
-            <p className="eyebrow">Geeta University Campus Hub</p>
-            <h1>Event Organizer</h1>
-            <p>
-              Discover campus events, reserve seats, manage attendance, collect feedback, and issue certificates
-              through one focused event management system.
-            </p>
-            <div className="hero-actions">
-              <Link className="primary-button" to="/events">
-                Browse events <ArrowRight size={18} />
-              </Link>
-              <Link className="secondary-button" to="/register">
-                Create account
-              </Link>
-            </div>
-          </div>
-          {/* <img alt="Campus event" className="hero-image" src={hero} /> */}
-          <video
-            className="hero-video"
-            autoPlay
-            muted
-            loop
-            playsInline
-          >
-  <source src={heroVideo} type="video/mp4" />
-  Your browser does not support the video tag.
-</video>
         </Container>
       </section>
 
@@ -240,54 +271,124 @@ function Home() {
         </Container>
       </section>
 
-      <section className="section-content">
+      <motion.section
+        className="section-content home-upcoming-section"
+        initial="hidden"
+        variants={sectionVariants}
+        viewport={{ once: true, amount: 0.18 }}
+        whileInView="visible"
+      >
         <Container>
-          <div className="page-header">
-            <SectionTitle title="Upcoming list" subtitle="Search and filter approved campus events by category." />
-            <label className="search-box">
-              <Search size={18} />
-              <input onChange={(event) => setQuery(event.target.value)} placeholder="Search by title or venue" value={query} />
-            </label>
+          <div className="home-upcoming-orb home-upcoming-orb-one" />
+          <div className="home-upcoming-orb home-upcoming-orb-two" />
+          <div className="page-header home-upcoming-header">
+            <div className="home-upcoming-title-block">
+              <p className="home-upcoming-kicker">
+                <Sparkles size={16} /> Campus discovery
+              </p>
+              <h2>Upcoming Events</h2>
+              <span className="home-upcoming-title-line" />
+              <p>Discover exciting events happening around your campus.</p>
+            </div>
+
+            <div className="home-upcoming-control-panel">
+              <label className="search-box premium-search-box">
+                <Search size={18} />
+                <input
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search by title, category, or venue"
+                  value={query}
+                />
+                {query && (
+                  <button aria-label="Clear search" onClick={() => setQuery("")} type="button">
+                    <X size={16} />
+                  </button>
+                )}
+              </label>
+              <div className="home-event-counter-grid">
+                <span><strong>{filteredEvents.length}</strong>Showing</span>
+                <span><strong>{events.length}</strong>Total</span>
+                <span><strong>{todayEventsCount}</strong>Today</span>
+              </div>
+            </div>
           </div>
 
-          <div className="category-tabs">
+          <div className="category-tabs home-category-tabs">
             {categories.map((item) => (
-              <button
+              <motion.button
                 className={item === category ? "active" : ""}
                 key={item}
                 onClick={() => setCategory(item)}
                 type="button"
+                whileHover={{ y: -2 }}
+                whileTap={{ scale: 0.97 }}
               >
+                {item === "All" && <Sparkles size={14} />}
                 {item}
-              </button>
+              </motion.button>
             ))}
           </div>
 
-          <div className="upcoming-list">
+          <motion.div className="upcoming-list" variants={listVariants}>
             {filteredEvents.length ? (
-              filteredEvents.slice(0, 5).map((event) => (
-                <Link className="list-row" key={event._id} to={`/events/${event._id}`}>
-                  <div>
-                    <strong>{event.title}</strong>
-                    <span>
-                      {formatDate(event.eventDate)} at {event.startTime}
-                    </span>
-                    <small>
-                      <MapPin size={14} /> {event.venue}
-                    </small>
-                  </div>
-                  <span className="event-price">{event.isPaid ? `Rs ${event.price}` : "Free"}</span>
-                </Link>
+              filteredEvents.slice(0, 5).map((event, index) => (
+                <motion.article
+                  className={`upcoming-event-card${sameDay(new Date(event.eventDate), new Date(now)) ? " is-today" : ""}`}
+                  key={event._id}
+                  variants={cardVariants}
+                  whileHover={{ y: -6, scale: 1.01 }}
+                >
+                  <Link className="upcoming-event-card-link" to={`/events/${event._id}`}>
+                    <div className="event-card-accent" />
+                    <div className="event-card-thumbnail">
+                      {event.poster ? (
+                        <img alt={event.title} src={event.poster} />
+                      ) : (
+                        <Sparkles size={24} />
+                      )}
+                    </div>
+                    <div className="event-card-main">
+                      <div className="event-card-badges">
+                        {index === 0 && <span className="trending-badge"><Sparkles size={13} /> Trending</span>}
+                        {event.featured && <span className="featured-ribbon">Featured</span>}
+                        {sameDay(new Date(event.eventDate), new Date(now)) && <span className="today-badge">Today</span>}
+                        <span className="event-category-badge">{event.category || "Campus"}</span>
+                      </div>
+                      <h3>{event.title}</h3>
+                      <div className="event-card-meta">
+                        <span><CalendarCheck size={16} /> {formatDate(event.eventDate)}</span>
+                        <span><Clock size={16} /> {event.startTime || "Time TBA"}</span>
+                        <span><MapPin size={16} /> {event.venue || "Venue TBA"}</span>
+                        <span><Users size={16} /> {Math.max(Number(event.totalSeats || 0) - Number(event.availableSeats || 0), 0)} joined</span>
+                      </div>
+                    </div>
+                    <div className="event-card-action">
+                      <span className={event.isPaid ? "event-price price-paid" : "event-price price-free"}>
+                        <Ticket size={15} /> {event.isPaid ? `Rs ${event.price}` : "FREE"}
+                      </span>
+                      <span className="premium-event-button">
+                        Register <ArrowRight size={17} />
+                      </span>
+                      <small>{getEventCountdown(event.eventDate, now)}</small>
+                    </div>
+                  </Link>
+                </motion.article>
               ))
             ) : (
-              <GlassCard className="empty-state">
-                <h2>No upcoming events</h2>
-                <p>Approved upcoming events will appear here.</p>
-              </GlassCard>
+              <motion.div className="premium-empty-state" variants={cardVariants}>
+                <div className="premium-empty-illustration">
+                  <Sparkles size={38} />
+                </div>
+                <h2>No events match your search</h2>
+                <p>Try a different keyword or browse all campus events.</p>
+                <button className="premium-event-button" onClick={() => { setCategory("All"); setQuery(""); }} type="button">
+                  Reset filters <ArrowRight size={17} />
+                </button>
+              </motion.div>
             )}
-          </div>
+          </motion.div>
         </Container>
-      </section>
+      </motion.section>
     </>
   );
 }

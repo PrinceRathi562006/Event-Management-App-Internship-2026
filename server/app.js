@@ -19,8 +19,10 @@ app.set("trust proxy", 1);
 // CORS
 // =======================================
 
+const normalizeOrigin = (origin = "") => origin.trim().replace(/\/+$/, "");
+
 const allowedOrigins = [
-  ...(process.env.CLIENT_URL || "").split(",").map((origin) => origin.trim()).filter(Boolean),
+  ...(process.env.CLIENT_URL || "").split(",").map(normalizeOrigin).filter(Boolean),
   "http://localhost:5173",
   "http://127.0.0.1:5173",
 ].filter(Boolean);
@@ -31,7 +33,9 @@ const isLocalDevOrigin = (origin = "") =>
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin || allowedOrigins.includes(origin) || isLocalDevOrigin(origin)) {
+      const normalizedOrigin = normalizeOrigin(origin);
+
+      if (!origin || allowedOrigins.includes(normalizedOrigin) || isLocalDevOrigin(normalizedOrigin)) {
         callback(null, true);
       } else {
         callback(new Error("Not allowed by CORS"));
@@ -101,6 +105,7 @@ app.use("/api/notifications", require("./routes/notificationRoutes"));
 app.use("/api/feedback", require("./routes/feedbackRoutes"));
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/checkin", require("./routes/checkinRoutes"));
+app.use("/api/attendance", require("./routes/attendanceRoutes"));
 app.use("/api/tickets", require("./routes/ticketRoutes"));
 app.use("/api/certificates", require("./routes/certificateRoutes"));
 app.use("/api/chat/organizer", require("./routes/organizerChatRoutes"));

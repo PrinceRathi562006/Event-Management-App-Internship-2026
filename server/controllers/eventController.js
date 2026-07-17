@@ -133,6 +133,7 @@ exports.createEvent = async (req, res, next) => {
       endTime,
       totalSeats,
       capacity,
+      seatSelectionEnabled,
       isPaid,
       price,
       tags,
@@ -208,6 +209,7 @@ exports.createEvent = async (req, res, next) => {
       endTime,
       totalSeats: seats,
       availableSeats: seats,
+      seatSelectionEnabled: seatSelectionEnabled === undefined ? true : toBoolean(seatSelectionEnabled),
       isPaid: paid,
       price: paid ? Math.max(Number(price || 0), 0) : 0,
       tags: parseJsonField(tags, typeof tags === "string" ? tags.split(",").map((tag) => tag.trim()).filter(Boolean) : []),
@@ -324,8 +326,8 @@ exports.getAdminEvents = async (req, res, next) => {
     const events = await Event.find()
       .populate("organizer", "name email role")
       .populate("assignedOrganizers", "name email role organizerStatus")
-      .populate("organizerCoordinators", "name email role department designation profileImage")
-      .populate("studentCoordinators", "name email rollNumber course branch year semester profileImage")
+      .populate("organizerCoordinators", "name email role department designation profileImage resumeUrl resumeFileName resumeMimeType resumeUploadedAt")
+      .populate("studentCoordinators", "name email rollNumber course branch year semester profileImage resumeUrl resumeFileName resumeMimeType resumeUploadedAt")
       .populate("approvedBy", "name email role")
       .sort({ createdAt: -1 });
 
@@ -355,8 +357,8 @@ exports.getSingleEvent = async (req, res, next) => {
         "name email phone profileImage role"
       )
       .populate("assignedOrganizers", "name email phone profileImage role")
-      .populate("organizerCoordinators", "name email phone profileImage role department designation")
-      .populate("studentCoordinators", "name email phone profileImage role rollNumber course branch year semester")
+      .populate("organizerCoordinators", "name email phone profileImage role department designation resumeUrl resumeFileName resumeMimeType resumeUploadedAt")
+      .populate("studentCoordinators", "name email phone profileImage role rollNumber course branch year semester resumeUrl resumeFileName resumeMimeType resumeUploadedAt")
       .populate("approvedBy", "name email role")
       .populate("approvalLogs.by", "name email role")
       .populate("updateHistory.by", "name email role");
@@ -404,8 +406,14 @@ exports.updateEvent = async (req, res, next) => {
     // Replace poster if uploaded
     const posterFile = req.file || getUploadedFiles(req, "poster")[0] || getUploadedFiles(req, "bannerImage")[0];
     const signatureFile = getUploadedFiles(req, "certificateSignature")[0];
+    const changedFields = [];
 
-    if (posterFile) {
+    if (toBoolean(req.body.removePoster) && !posterFile) {
+      await deleteFromCloudinary(event.posterPublicId);
+      event.poster = "";
+      event.posterPublicId = "";
+      changedFields.push("poster");
+    } else if (posterFile) {
       const image = await replaceImage(
         event.posterPublicId,
         posterFile.path,
@@ -416,12 +424,31 @@ exports.updateEvent = async (req, res, next) => {
       event.posterPublicId = image.public_id;
     }
 
+    const removedGalleryIds = normalizeIds(req.body.removeGalleryImages);
+    if (removedGalleryIds.length) {
+      const removedImages = event.galleryImages.filter((image) =>
+        removedGalleryIds.includes(String(image.publicId || "")) ||
+        removedGalleryIds.includes(String(image._id || "")) ||
+        removedGalleryIds.includes(String(image.url || ""))
+      );
+
+      for (const image of removedImages) {
+        await deleteFromCloudinary(image.publicId);
+      }
+
+      event.galleryImages = event.galleryImages.filter((image) =>
+        !removedGalleryIds.includes(String(image.publicId || "")) &&
+        !removedGalleryIds.includes(String(image._id || "")) &&
+        !removedGalleryIds.includes(String(image.url || ""))
+      );
+      changedFields.push("galleryImages");
+    }
+
     const newGalleryImages = await uploadGallery(getUploadedFiles(req, "galleryImages"));
     if (newGalleryImages.length) {
       event.galleryImages = [...event.galleryImages, ...newGalleryImages];
     }
 
-    const changedFields = [];
     const assign = (field, value) => {
       if (value !== undefined) {
         event[field] = value;
@@ -429,7 +456,12 @@ exports.updateEvent = async (req, res, next) => {
       }
     };
 
-    if (signatureFile) {
+    if (toBoolean(req.body.removeCertificateSignature) && !signatureFile) {
+      await deleteFromCloudinary(event.certificateSignaturePublicId);
+      event.certificateSignature = "";
+      event.certificateSignaturePublicId = "";
+      changedFields.push("certificateSignature");
+    } else if (signatureFile) {
       const image = await replaceImage(
         event.certificateSignaturePublicId,
         signatureFile.path,
@@ -460,6 +492,11 @@ exports.updateEvent = async (req, res, next) => {
       event.totalSeats = nextSeats;
       event.availableSeats = Math.max(nextSeats - bookedSeats, 0);
       changedFields.push("totalSeats", "availableSeats");
+    }
+
+    if (req.body.seatSelectionEnabled !== undefined) {
+      event.seatSelectionEnabled = toBoolean(req.body.seatSelectionEnabled);
+      changedFields.push("seatSelectionEnabled");
     }
 
     if (req.body.isPaid !== undefined) {
@@ -545,6 +582,10 @@ exports.updateEvent = async (req, res, next) => {
     }
 
     await event.save();
+
+    if (req.body.seatSelectionEnabled !== undefined && !event.seatSelectionEnabled) {
+      await Booking.updateMany({ event: event._id }, { $set: { seatNumber: "" } });
+    }
 
     return res.status(200).json({
       success: true,
@@ -984,8 +1025,8 @@ exports.getMyEvents = async (req, res, next) => {
     })
       .populate("organizer", "name email role")
       .populate("assignedOrganizers", "name email role organizerStatus")
-      .populate("organizerCoordinators", "name email role department designation profileImage")
-      .populate("studentCoordinators", "name email rollNumber course branch year semester profileImage")
+      .populate("organizerCoordinators", "name email role department designation profileImage resumeUrl resumeFileName resumeMimeType resumeUploadedAt")
+      .populate("studentCoordinators", "name email rollNumber course branch year semester profileImage resumeUrl resumeFileName resumeMimeType resumeUploadedAt")
       .sort({
         createdAt: -1,
       });
@@ -1161,7 +1202,7 @@ exports.searchCoordinatorCandidates = async (req, res, next) => {
     }
 
     const users = await User.find(filter)
-      .select("name email role rollNumber course branch year semester department designation profileImage organizerStatus")
+      .select("name email role rollNumber course branch year semester department designation profileImage organizerStatus resumeUrl resumeFileName resumeMimeType resumeUploadedAt")
       .limit(12)
       .sort({ name: 1 });
 

@@ -1,4 +1,5 @@
-import { Route, Routes } from "react-router-dom";
+import { useEffect } from "react";
+import { Route, Routes, useLocation } from "react-router-dom";
 import Footer from "../components/layout/Footer";
 import Navbar from "../components/layout/Navbar";
 import CalendarView from "../pages/CalendarView";
@@ -18,9 +19,21 @@ import Register from "../pages/Register";
 import Settings from "../pages/Settings";
 import VerifyEmail from "../pages/VerifyEmail";
 
+function SmoothScrollToTop() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
+  }, [pathname]);
+
+  return null;
+}
+
 function AppRoutes() {
   return (
     <div className="page-shell">
+      <SmoothScrollToTop />
       <Navbar />
       <main>
         <Routes>

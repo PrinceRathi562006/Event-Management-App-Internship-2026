@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Link } from "react-router-dom";
 import { Award, FileUp, Settings } from "lucide-react";
+import CinematicHeroBackground from "../components/features/CinematicHeroBackground";
 import Container from "../components/ui/Container";
 import GlassCard from "../components/ui/GlassCard";
 import Loader from "../components/ui/Loader";
@@ -29,6 +30,14 @@ function formatDisplayDate(value) {
     year: "numeric",
   }).format(new Date(value));
 }
+
+const getAssetUrl = (value) => {
+  if (!value) return "";
+  if (value.startsWith("http")) return value;
+  const apiBaseUrl = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:5000/api" : "/api");
+  const apiRoot = apiBaseUrl.replace(/\/api\/?$/, "");
+  return `${apiRoot}${value}`;
+};
 
 function Profile() {
   const [user, setUser] = useState(null);
@@ -80,7 +89,8 @@ function Profile() {
   const completion = Math.round((completed / completionFields.length) * 100);
 
   return (
-    <section className="section-content page-top">
+    <section className="section-content page-top scene-page">
+      <CinematicHeroBackground className="scene-page-background" variant="profile" />
       <Container>
         <div className="page-header">
           <SectionTitle title="Profile" subtitle="Read-only account overview." />
@@ -127,9 +137,17 @@ function Profile() {
               <h2>Resume Integration</h2>
               <FileUp size={22} />
             </div>
-            <p>Students can upload resumes from Settings. Organizers can download participant resumes from registration details.</p>
-            <Link className="secondary-button" to="/settings">
-              Update resume
+            <p>Upload your resume from Settings. Organizers and admins can open it from registration and user details.</p>
+            {user.resumeUrl && (
+              <div className="resume-link-row">
+                <span>{user.resumeFileName || "Uploaded resume"}</span>
+                <a className="secondary-button" href={getAssetUrl(user.resumeUrl)} rel="noreferrer" target="_blank">
+                  View resume
+                </a>
+              </div>
+            )}
+            <Link className={user.resumeUrl ? "secondary-button" : "primary-button"} to="/settings">
+              {user.resumeUrl ? "Update resume" : "Upload resume"}
             </Link>
           </GlassCard>
           <GlassCard className="dashboard-panel">
