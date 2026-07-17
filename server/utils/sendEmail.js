@@ -25,24 +25,31 @@ const transporter = emailConfigured
   ? nodemailer.createTransport({
       logger: true,
       debug: true,
-      ...(smtpHost
-        ? {
-            host: smtpHost,
-            port: smtpPort,
-            secure: smtpSecure,
-          }
-        : {
-            service: process.env.EMAIL_SERVICE || "gmail",
-          }),
+
+      host: "smtp.gmail.com",
+      port: 587,
+      secure: false,
+      requireTLS: true,
+      family: 4,
+
       auth: {
         user: emailUser,
         pass: emailPass,
       },
-      connectionTimeout: 8000,
-      greetingTimeout: 8000,
-      socketTimeout: 15000,
+
+      connectionTimeout: 20000,
+      greetingTimeout: 20000,
+      socketTimeout: 30000,
     })
   : null;
+
+console.log("SMTP CONFIG:", {
+  host: "smtp.gmail.com",
+  port: 587,
+  secure: false,
+  family: 4,
+  user: emailUser,
+});
 
 if (transporter) {
   console.log("Email service configured");
