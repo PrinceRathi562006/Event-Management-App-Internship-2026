@@ -16,13 +16,15 @@ const emailUser = clean(process.env.EMAIL_USER || process.env.SMTP_USER);
 const emailPass = cleanSecret(process.env.EMAIL_PASS || process.env.SMTP_PASS);
 const smtpHost = clean(process.env.SMTP_HOST);
 const smtpPort = Number(process.env.SMTP_PORT || 587);
-const smtpSecure = String(process.env.SMTP_SECURE || "").toLowerCase() === "true" || smtpPort === 465;
+const smtpSecure =
+  String(process.env.SMTP_SECURE || "").toLowerCase() === "true" ||
+  smtpPort === 465;
 const emailConfigured = Boolean(emailUser && emailPass);
 
 const transporter = emailConfigured
   ? nodemailer.createTransport({
-    logger: true,
-    debug: true,
+      logger: true,
+      debug: true,
       ...(smtpHost
         ? {
             host: smtpHost,
@@ -45,7 +47,9 @@ const transporter = emailConfigured
 if (transporter) {
   console.log("Email service configured");
 } else {
-  console.warn("Email credentials missing. Emails will be logged in development mode.");
+  console.warn(
+    "Email credentials missing. Emails will be logged in development mode.",
+  );
 }
 
 const getAttachmentSummary = (attachments = []) =>
@@ -60,13 +64,27 @@ const getAttachmentSummary = (attachments = []) =>
 const withTimeout = (promise, ms, label) => {
   let timer;
   const timeout = new Promise((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)} seconds`)), ms);
+    timer = setTimeout(
+      () =>
+        reject(
+          new Error(
+            `${label} timed out after ${Math.round(ms / 1000)} seconds`,
+          ),
+        ),
+      ms,
+    );
   });
 
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 };
 
-const sendEmail = async ({ to, subject, html, text = "", attachments = [] }) => {
+const sendEmail = async ({
+  to,
+  subject,
+  html,
+  text = "",
+  attachments = [],
+}) => {
   try {
     if (!transporter) {
       if (process.env.NODE_ENV === "production") {
@@ -87,7 +105,7 @@ const sendEmail = async ({ to, subject, html, text = "", attachments = [] }) => 
     }
 
     const info = await withTimeout(
-      await transporter.sendMail({
+      transporter.sendMail({
         from: `"Event Organizer" <${emailUser}>`,
         replyTo: emailUser,
         to,
@@ -100,7 +118,7 @@ const sendEmail = async ({ to, subject, html, text = "", attachments = [] }) => 
         },
       }),
       Number(process.env.EMAIL_TIMEOUT_MS || 12000),
-      "Email send"
+      "Email send",
     );
 
     console.log("Email sent", {
@@ -121,7 +139,9 @@ const sendEmail = async ({ to, subject, html, text = "", attachments = [] }) => 
     console.error("Email Error:", error.message);
 
     if (transporter || process.env.NODE_ENV === "production") {
-      const emailError = new Error("Unable to send email. Check Gmail app password or SMTP settings.");
+      const emailError = new Error(
+        "Unable to send email. Check Gmail app password or SMTP settings.",
+      );
       emailError.statusCode = 503;
       throw emailError;
     }
@@ -152,7 +172,11 @@ sendEmail.verifyTransport = async () => {
   }
 
   try {
-    await withTimeout(await transporter.verify(), Number(process.env.EMAIL_TIMEOUT_MS || 12000), "Email verification");
+    await withTimeout(
+      transporter.verify(),
+      Number(process.env.EMAIL_TIMEOUT_MS || 12000),
+      "Email verification",
+    );
     return {
       success: true,
       message: "Email service connected successfully.",

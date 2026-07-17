@@ -3,6 +3,12 @@ require("dotenv").config();
 const http = require("http");
 const app = require("./app");
 
+const dns = require('dns');
+dns.setServers([
+    "8.8.8.8",
+    "1.1.1.1"
+])
+
 const connectDB = require("./config/db");
 const { initSocket } = require("./sockets/socket");
 
