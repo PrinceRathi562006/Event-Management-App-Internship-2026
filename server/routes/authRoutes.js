@@ -21,6 +21,7 @@ const {
   uploadProfileImage,
   uploadResume,
   getEmailHealth,
+  sendEmailTest,
   logout,
 } = authController;
 
@@ -217,6 +218,12 @@ router.get(
   "/email-health",
   protect,
   getEmailHealth
+);
+
+router.post(
+  "/email-test",
+  protect,
+  sendEmailTest
 );
 
 // Change Password

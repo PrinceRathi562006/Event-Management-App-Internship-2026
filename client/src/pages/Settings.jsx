@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from "react-redux";
 import Container from "../components/ui/Container";
 import GlassCard from "../components/ui/GlassCard";
 import Loader from "../components/ui/Loader";
+import PasswordField from "../components/ui/PasswordField";
 import SectionTitle from "../components/ui/SectionTitle";
 import { setCredentials } from "../redux/authSlice";
 import api from "../services/api";
@@ -226,16 +227,16 @@ function Settings() {
           <GlassCard className="dashboard-panel">
             <h2>Password</h2>
             <form className="dense-form" onSubmit={changePassword}>
-              <input
+              <PasswordField
+                autoComplete="current-password"
                 onChange={(event) => setPasswords((current) => ({ ...current, currentPassword: event.target.value }))}
                 placeholder="Current password"
-                type="password"
                 value={passwords.currentPassword}
               />
-              <input
+              <PasswordField
+                autoComplete="new-password"
                 onChange={(event) => setPasswords((current) => ({ ...current, newPassword: event.target.value }))}
                 placeholder="New password"
-                type="password"
                 value={passwords.newPassword}
               />
               <button className="secondary-button" disabled={saving} type="submit">

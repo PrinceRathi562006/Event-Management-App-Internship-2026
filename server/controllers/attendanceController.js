@@ -111,11 +111,21 @@ const parseScanInput = (body = {}) => {
 
   if (parsedPayload) {
     const parsed = parsedPayload.data || parsedPayload.payload || parsedPayload;
+    const booking = parsed.booking || parsed.registration || {};
+
     return {
-      token: parsed.token || parsed.qrToken || "",
-      ticketNumber: parsed.ticketNumber || parsed.ticket || parsed.code || "",
-      bookingId: parsed.bookingId || parsed.registrationId || parsed.registration || "",
-      eventId: body.eventId || parsed.eventId || "",
+      token: body.token || parsed.token || parsed.qrToken || parsed.jwt || "",
+      ticketNumber: body.ticketNumber || parsed.ticketNumber || parsed.ticket || parsed.code || booking.ticketNumber || "",
+      bookingId:
+        body.bookingId ||
+        parsed.bookingId ||
+        parsed.registrationId ||
+        parsed.booking_id ||
+        parsed.registration_id ||
+        booking.bookingId ||
+        booking._id ||
+        "",
+      eventId: body.eventId || parsed.eventId || parsed.event_id || parsed.event?._id || parsed.event?.id || "",
     };
   }
 
@@ -132,8 +142,8 @@ const parseScanInput = (body = {}) => {
 
   return {
     token: body.token || (raw.split(".").length === 3 ? raw : ""),
-    ticketNumber: body.ticketNumber || (raw.split(".").length === 3 ? "" : raw),
-    bookingId: body.bookingId || "",
+    ticketNumber: body.ticketNumber || (raw.split(".").length === 3 || objectIdPattern.test(raw) ? "" : raw),
+    bookingId: body.bookingId || (objectIdPattern.test(raw) ? raw : ""),
     eventId: body.eventId || "",
   };
 };

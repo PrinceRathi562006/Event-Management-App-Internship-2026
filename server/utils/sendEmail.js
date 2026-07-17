@@ -2,6 +2,15 @@ const nodemailer = require("nodemailer");
 
 const clean = (value = "") => String(value || "").trim();
 const cleanSecret = (value = "") => clean(value).replace(/\s+/g, "");
+const maskEmail = (value = "") => {
+  const email = clean(value);
+  const atIndex = email.indexOf("@");
+
+  if (!email) return "";
+  if (atIndex <= 1) return `***${atIndex >= 0 ? email.slice(atIndex) : ""}`;
+
+  return `${email.slice(0, 2)}***${atIndex >= 0 ? email.slice(atIndex) : ""}`;
+};
 
 const emailUser = clean(process.env.EMAIL_USER || process.env.SMTP_USER);
 const emailPass = cleanSecret(process.env.EMAIL_PASS || process.env.SMTP_PASS);
@@ -12,6 +21,8 @@ const emailConfigured = Boolean(emailUser && emailPass);
 
 const transporter = emailConfigured
   ? nodemailer.createTransport({
+    logger: true,
+    debug: true,
       ...(smtpHost
         ? {
             host: smtpHost,
@@ -76,27 +87,43 @@ const sendEmail = async ({ to, subject, html, text = "", attachments = [] }) => 
     }
 
     const info = await withTimeout(
-      transporter.sendMail({
+      await transporter.sendMail({
         from: `"Event Organizer" <${emailUser}>`,
+        replyTo: emailUser,
         to,
         subject,
         text,
         html,
         attachments,
+        headers: {
+          "X-Application": "Event Organizer",
+        },
       }),
       Number(process.env.EMAIL_TIMEOUT_MS || 12000),
       "Email send"
     );
 
+    console.log("Email sent", {
+      to: maskEmail(to),
+      subject,
+      accepted: info.accepted?.map(maskEmail) || [],
+      rejected: info.rejected?.map(maskEmail) || [],
+      messageId: info.messageId,
+    });
+
     return {
       success: true,
       messageId: info.messageId,
+      accepted: info.accepted,
+      rejected: info.rejected,
     };
   } catch (error) {
     console.error("Email Error:", error.message);
 
-    if (process.env.NODE_ENV === "production") {
-      throw new Error("Unable to send email");
+    if (transporter || process.env.NODE_ENV === "production") {
+      const emailError = new Error("Unable to send email. Check Gmail app password or SMTP settings.");
+      emailError.statusCode = 503;
+      throw emailError;
     }
 
     return {
@@ -108,12 +135,11 @@ const sendEmail = async ({ to, subject, html, text = "", attachments = [] }) => 
 };
 
 sendEmail.getEmailStatus = () => {
-  const atIndex = emailUser.indexOf("@");
-
   return {
     configured: emailConfigured,
-    user: emailUser ? `${emailUser.slice(0, 2)}***${atIndex >= 0 ? emailUser.slice(atIndex) : ""}` : "",
+    user: maskEmail(emailUser),
     provider: smtpHost || process.env.EMAIL_SERVICE || "gmail",
+    timeoutMs: Number(process.env.EMAIL_TIMEOUT_MS || 12000),
   };
 };
 
@@ -126,7 +152,7 @@ sendEmail.verifyTransport = async () => {
   }
 
   try {
-    await withTimeout(transporter.verify(), Number(process.env.EMAIL_TIMEOUT_MS || 12000), "Email verification");
+    await withTimeout(await transporter.verify(), Number(process.env.EMAIL_TIMEOUT_MS || 12000), "Email verification");
     return {
       success: true,
       message: "Email service connected successfully.",

@@ -94,6 +94,38 @@ const generateBookingId = async () => {
   return `EVT-${year}-${String(count + 1).padStart(6, "0")}`;
 };
 
+const sendBookingConfirmationEmail = async ({ booking, event, user }) => {
+  if (!user?.email) {
+    return;
+  }
+
+  const qrCid = `ticket-qr-${booking.bookingId}`;
+  const qrAttachment = dataUrlToAttachment({
+    dataUrl: booking.qrCode,
+    filename: `${booking.bookingId}-qr-ticket.png`,
+    cid: qrCid,
+  });
+
+  await safeSendEmail({
+    to: user.email,
+    subject: `Registration Confirmed: ${event.title}`,
+    text: `Your registration for ${event.title} is confirmed. Booking ID: ${booking.bookingId}. Venue: ${event.venue}. Date: ${formatDate(event.eventDate)}. Time: ${event.startTime} - ${event.endTime}.`,
+    html: bookingTemplate({
+      name: user.name,
+      eventTitle: event.title,
+      venue: event.venue,
+      eventDate: formatDate(event.eventDate),
+      startTime: event.startTime,
+      endTime: event.endTime,
+      ticketNumber: booking.bookingId,
+      paymentStatus: booking.paymentStatus,
+      amount: booking.amount,
+      qrCodeCid: qrCid,
+    }),
+    attachments: qrAttachment ? [qrAttachment] : [],
+  });
+};
+
 const getEventEndDate = (event) => {
   const expiresAt = new Date(event.eventDate);
   const timeMatch = String(event.endTime || "").match(/^(\d{1,2}):(\d{2})/);
@@ -112,10 +144,11 @@ const hashQRSecret = (value) => crypto.createHash("sha256").update(String(value)
 const createAttendanceQRCode = async ({ booking, event, generatedBy }) => {
   const expiresAt = getEventEndDate(event);
   const secret = crypto.randomBytes(24).toString("hex");
+  const bookingUserId = booking.user?._id || booking.user;
   const token = jwt.sign(
     {
       type: "EVENT_ATTENDANCE",
-      userId: booking.user.toString(),
+      userId: bookingUserId.toString(),
       registrationId: booking._id.toString(),
       eventId: event._id.toString(),
       timestamp: Date.now(),
@@ -131,7 +164,7 @@ const createAttendanceQRCode = async ({ booking, event, generatedBy }) => {
   await QRSession.findOneAndUpdate(
     {
       eventId: event._id,
-      userId: booking.user,
+      userId: bookingUserId,
       registrationId: booking._id,
     },
     {
@@ -277,11 +310,13 @@ exports.bookEvent = async (req, res, next) => {
         seatNumber: selectedSeat,
       });
 
-      booking.qrCode = await createAttendanceQRCode({
-        booking,
-        event,
-        generatedBy: req.user._id,
-      });
+      if (!event.isPaid) {
+        booking.qrCode = await createAttendanceQRCode({
+          booking,
+          event,
+          generatedBy: req.user._id,
+        });
+      }
       await booking.save();
     } catch (error) {
       await Event.findByIdAndUpdate(event._id, {
@@ -300,31 +335,9 @@ exports.bookEvent = async (req, res, next) => {
       type: "BOOKING",
     });
 
-    const qrCid = `ticket-qr-${booking.bookingId}`;
-    const qrAttachment = dataUrlToAttachment({
-      dataUrl: booking.qrCode,
-      filename: `${booking.bookingId}-qr-ticket.png`,
-      cid: qrCid,
-    });
-
-    await safeSendEmail({
-      to: req.user.email,
-      subject: `Registration Confirmed: ${event.title}`,
-      text: `Your registration for ${event.title} is confirmed. Booking ID: ${booking.bookingId}. Venue: ${event.venue}. Date: ${formatDate(event.eventDate)}. Time: ${event.startTime} - ${event.endTime}.`,
-      html: bookingTemplate({
-        name: req.user.name,
-        eventTitle: event.title,
-        venue: event.venue,
-        eventDate: formatDate(event.eventDate),
-        startTime: event.startTime,
-        endTime: event.endTime,
-        ticketNumber: booking.bookingId,
-        paymentStatus: booking.paymentStatus,
-        amount: booking.amount,
-        qrCodeCid: qrCid,
-      }),
-      attachments: qrAttachment ? [qrAttachment] : [],
-    });
+    if (!event.isPaid) {
+      await sendBookingConfirmationEmail({ booking, event, user: req.user });
+    }
 
     return res.status(201).json({
       success: true,
@@ -869,3 +882,6 @@ exports.getBookingStats = async (req, res, next) => {
     next(error);
   }
 };
+
+exports.createAttendanceQRCode = createAttendanceQRCode;
+exports.sendBookingConfirmationEmail = sendBookingConfirmationEmail;

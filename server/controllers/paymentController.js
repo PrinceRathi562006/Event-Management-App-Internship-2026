@@ -5,6 +5,10 @@ const Payment = require("../models/Payment");
 const Booking = require("../models/Booking");
 const Event = require("../models/Event");
 const Notification = require("../models/Notification");
+const {
+  createAttendanceQRCode,
+  sendBookingConfirmationEmail,
+} = require("./bookingController");
 
 const getRazorpayKeyId = () => process.env.RAZORPAY_KEY_ID;
 const getRazorpaySecret = () => process.env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_SECRET;
@@ -203,9 +207,9 @@ exports.verifyPayment = async (req, res, next) => {
     await payment.save();
 
     // Update Booking
-    const booking = await Booking.findById(
-      payment.booking
-    );
+    const booking = await Booking.findById(payment.booking)
+      .populate("event")
+      .populate("user", "name email phone");
 
     if (!booking) {
       return res.status(404).json({
@@ -220,12 +224,26 @@ exports.verifyPayment = async (req, res, next) => {
     booking.transactionId = razorpay_payment_id;
     booking.paymentStatus = "Paid";
 
+    if (!booking.qrCode) {
+      booking.qrCode = await createAttendanceQRCode({
+        booking,
+        event: booking.event,
+        generatedBy: req.user._id,
+      });
+    }
+
     await booking.save();
+
+    await sendBookingConfirmationEmail({
+      booking,
+      event: booking.event,
+      user: booking.user,
+    });
 
     // Notification
     await Notification.create({
-      user: booking.user,
-      event: booking.event,
+      user: booking.user._id,
+      event: booking.event._id,
       title: "Payment Successful",
       message:
         "Your payment has been completed successfully.",
@@ -236,6 +254,7 @@ exports.verifyPayment = async (req, res, next) => {
       success: true,
       message: "Payment verified successfully.",
       payment,
+      booking,
     });
 
   } catch (error) {

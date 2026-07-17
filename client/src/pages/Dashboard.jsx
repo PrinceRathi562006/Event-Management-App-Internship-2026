@@ -741,6 +741,8 @@ function Dashboard({ adminOnly = false }) {
   const [saving, setSaving] = useState(false);
   const [dashboardSidebarCollapsed, setDashboardSidebarCollapsed] = useState(false);
   const [activeDashboardSection, setActiveDashboardSection] = useState("requests");
+  const hasCoordinatorAccess =
+    role === "student" && (events.length > 0 || Number(dashboard.coordinatorEvents || 0) > 0);
 
   const stats = useMemo(() => {
     if (role === "organizer") {
@@ -760,14 +762,23 @@ function Dashboard({ adminOnly = false }) {
       ];
     }
 
-    return [
+    const studentStats = [
       { label: "Upcoming", value: dashboard.upcomingEvents || 0, icon: CalendarDays },
       { label: "My Events", value: dashboard.myBookings || 0, icon: Ticket },
-      { label: "Coordinator Events", value: dashboard.coordinatorEvents || events.length || 0, icon: UserCog },
       { label: "Certificates", value: dashboard.certificates || 0, icon: ShieldCheck },
       { label: "Cancelled", value: dashboard.cancelledBookings || 0, icon: UsersRound },
     ];
-  }, [dashboard, events.length, role]);
+
+    if (hasCoordinatorAccess) {
+      studentStats.splice(2, 0, {
+        label: "Coordinator Events",
+        value: dashboard.coordinatorEvents || events.length || 0,
+        icon: UserCog,
+      });
+    }
+
+    return studentStats;
+  }, [dashboard, events.length, hasCoordinatorAccess, role]);
 
   const dashboardSections = useMemo(() => {
     if (role === "admin") {
@@ -796,19 +807,28 @@ function Dashboard({ adminOnly = false }) {
       ];
     }
 
-    return [
+    const studentSections = [
       { id: "requests", label: "Coordinator Requests", icon: ClipboardList },
       { id: "my-events", label: "My Events", icon: Ticket },
-      { id: "coordinator-events", label: "Coordinator Events", icon: CalendarDays },
-      { id: "attendance", label: "Attendance", icon: UsersRound },
-      { id: "scanner", label: "QR Scanner", icon: QrCode },
-      { id: "certificates", label: "Certificates", icon: Award },
-      { id: "analytics", label: "Analytics", icon: BarChart3 },
-      { id: "operations", label: "Operations", icon: UserCog },
       { id: "profile", label: "Profile Details", icon: User },
       { id: "notifications", label: "Notifications", icon: Bell },
     ];
-  }, [role]);
+
+    if (hasCoordinatorAccess) {
+      studentSections.splice(
+        2,
+        0,
+        { id: "coordinator-events", label: "Coordinator Events", icon: CalendarDays },
+        { id: "attendance", label: "Attendance", icon: UsersRound },
+        { id: "scanner", label: "QR Scanner", icon: QrCode },
+        { id: "certificates", label: "Certificates", icon: Award },
+        { id: "analytics", label: "Analytics", icon: BarChart3 },
+        { id: "operations", label: "Operations", icon: UserCog }
+      );
+    }
+
+    return studentSections;
+  }, [hasCoordinatorAccess, role]);
 
   const refresh = useCallback(async () => {
     if (role === "organizer" && user?.organizerStatus !== "Approved") {

@@ -112,9 +112,16 @@ function ProfessionalQRScanner({ eventId, disabled = false, onMarked }) {
   const scannerConfig = useMemo(
     () => ({
       fps: 10,
-      qrbox: { width: 250, height: 250 },
+      qrbox: (viewportWidth, viewportHeight) => {
+        const edge = Math.max(190, Math.min(280, Math.floor(Math.min(viewportWidth, viewportHeight) * 0.72)));
+        return { width: edge, height: edge };
+      },
       aspectRatio: 1,
       formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+      rememberLastUsedCamera: true,
+      experimentalFeatures: {
+        useBarCodeDetectorIfSupported: true,
+      },
     }),
     []
   );

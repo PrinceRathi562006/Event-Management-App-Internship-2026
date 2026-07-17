@@ -42,7 +42,7 @@ color:white;
 font-size:28px;
 font-weight:bold;
 ">
-🔒 Password Reset Request
+Password Reset Request
 </td>
 </tr>
 
@@ -128,7 +128,7 @@ text-align:center;
 font-size:13px;
 color:#777;
 ">
-© ${new Date().getFullYear()} Event Organizer | Campus Event Hub
+Copyright ${new Date().getFullYear()} Event Organizer | Campus Event Hub
 </td>
 </tr>
 

@@ -125,7 +125,7 @@ font-size:13px;
 color:#777;
 ">
 
-© ${new Date().getFullYear()} Event Organizer
+Copyright ${new Date().getFullYear()} Event Organizer
 
 </td>
 </tr>

@@ -3,6 +3,7 @@ import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 import Container from "../components/ui/Container";
 import GlassCard from "../components/ui/GlassCard";
+import PasswordField from "../components/ui/PasswordField";
 import api from "../services/api";
 
 function ForgotPassword() {
@@ -117,16 +118,16 @@ function ForgotPassword() {
 
           {step === "reset" && (
             <form onSubmit={resetPassword}>
-              <input
+              <PasswordField
+                autoComplete="new-password"
                 onChange={(event) => update("password", event.target.value)}
                 placeholder="New password"
-                type="password"
                 value={form.password}
               />
-              <input
+              <PasswordField
+                autoComplete="new-password"
                 onChange={(event) => update("confirmPassword", event.target.value)}
                 placeholder="Confirm new password"
-                type="password"
                 value={form.confirmPassword}
               />
               <button className="primary-button" disabled={loading} type="submit">

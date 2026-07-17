@@ -38,7 +38,7 @@ font-size:28px;
 font-weight:bold;
 text-align:center;
 ">
-🎉 Event Organizer
+Event Organizer
 </td>
 </tr>
 
@@ -100,7 +100,7 @@ text-align:center;
 font-size:13px;
 color:#888;
 ">
-© ${new Date().getFullYear()} Event Organizer. All rights reserved.
+Copyright ${new Date().getFullYear()} Event Organizer. All rights reserved.
 </td>
 </tr>
 

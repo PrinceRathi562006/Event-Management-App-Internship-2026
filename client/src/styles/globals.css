@@ -1,10 +1,10 @@
-@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap");
 
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-  font-family: "Poppins", sans-serif;
+  font-family: "Inter", "Plus Jakarta Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 html {
@@ -225,6 +225,39 @@ select {
 .input-label input {
   color: var(--dark);
   font-weight: 500;
+}
+
+.password-field {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.password-field input {
+  padding-right: 3rem;
+}
+
+.password-field button {
+  position: absolute;
+  top: 50%;
+  right: 0.55rem;
+  width: 2.25rem;
+  height: 2.25rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--primary);
+  transform: translateY(-50%);
+  transition:
+    background-color var(--transition),
+    transform var(--transition);
+}
+
+.password-field button:hover,
+.password-field button:focus-visible {
+  background: rgba(37, 99, 235, 0.14);
+  transform: translateY(-50%) scale(1.04);
 }
 
 .site-header {
@@ -1436,11 +1469,13 @@ select:focus {
 .home-upcoming-title-block h2 {
   max-width: 720px;
   font-size: clamp(2.4rem, 5vw, 4.8rem);
-  line-height: 0.92;
+  line-height: 1.04;
+  padding: 0.04em 0 0.08em;
   background: linear-gradient(135deg, #0f172a 5%, #2563eb 48%, #8b5cf6 92%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+  overflow: visible;
 }
 
 .home-upcoming-title-line {
@@ -1684,7 +1719,7 @@ select:focus {
 
 .event-card-main h3 {
   font-size: clamp(1.15rem, 2vw, 1.55rem);
-  line-height: 1.1;
+  line-height: 1.22;
   color: #0f172a;
   overflow-wrap: anywhere;
 }
@@ -2571,6 +2606,11 @@ select:focus {
 :root[data-theme="dark"] select {
   background: #111827;
   color: var(--dark);
+}
+
+:root[data-theme="dark"] .password-field button {
+  background: rgba(96, 165, 250, 0.14);
+  color: #bfdbfe;
 }
 
 :root[data-theme="dark"] .notification-item,
@@ -3480,10 +3520,10 @@ select:focus {
 }
 
 .hero-section-cinematic {
-  min-height: min(820px, calc(100vh - 72px));
+  min-height: clamp(560px, 76vh, 700px);
   display: grid;
   align-items: center;
-  padding: 5rem 0;
+  padding: 3.5rem 0 3rem;
   isolation: isolate;
   background:
     linear-gradient(105deg, rgba(11, 17, 32, 0.98) 0%, rgba(11, 17, 32, 0.94) 38%, rgba(31, 41, 88, 0.88) 100%),
@@ -3584,7 +3624,7 @@ select:focus {
 }
 
 .hero-section-cinematic .hero-grid {
-  min-height: min(680px, calc(100vh - 180px));
+  min-height: clamp(460px, 62vh, 580px);
   grid-template-columns: minmax(0, 0.52fr) minmax(0, 0.48fr);
 }
 
@@ -4026,6 +4066,15 @@ select:focus {
     min-width: 0;
   }
 
+  .dashboard-page {
+    background:
+      linear-gradient(180deg, #f8fafc 0%, #eef6ff 42%, #f8fafc 100%);
+  }
+
+  .dashboard-container {
+    width: min(100%, calc(100% - 1.25rem));
+  }
+
   .section-title {
     font-size: 1.75rem;
   }
@@ -4078,21 +4127,35 @@ select:focus {
   .dashboard-sidebar.is-collapsed {
     position: static;
     display: grid;
-    padding: 0.75rem;
+    gap: 0.55rem;
+    padding: 0.65rem;
     max-width: 100%;
     overflow: hidden;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
   }
 
   .dashboard-sidebar-head {
-    margin-bottom: 0.6rem;
+    min-height: 36px;
+    margin-bottom: 0;
+    padding-inline: 0.15rem;
+  }
+
+  .dashboard-sidebar-head button {
+    width: 36px;
+    height: 36px;
   }
 
   .dashboard-sidebar-nav {
-    display: flex;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(128px, max-content);
     gap: 0.45rem;
     max-width: 100%;
     overflow-x: auto;
-    padding-bottom: 0.25rem;
+    padding: 0.1rem 0.05rem 0.35rem;
+    overscroll-behavior-x: contain;
     scrollbar-width: none;
     scroll-snap-type: x proximity;
   }
@@ -4112,10 +4175,20 @@ select:focus {
 
   .dashboard-sidebar-nav button,
   .dashboard-sidebar.is-collapsed .dashboard-sidebar-nav button {
-    flex: 0 0 auto;
+    width: 100%;
+    min-height: 42px;
     justify-content: flex-start;
-    padding: 0.65rem 0.75rem;
+    gap: 0.5rem;
+    padding: 0.58rem 0.7rem;
+    font-size: 0.86rem;
     scroll-snap-align: start;
+    white-space: nowrap;
+  }
+
+  .dashboard-sidebar-nav button.active {
+    box-shadow:
+      inset 0 -3px 0 var(--primary),
+      0 10px 22px rgba(37, 99, 235, 0.08);
   }
 
   .dashboard-grid,
@@ -4128,6 +4201,16 @@ select:focus {
   .professional-scanner {
     min-width: 0;
     max-width: 100%;
+  }
+
+  .dashboard-workspace,
+  .dashboard-content-grid {
+    gap: 0.85rem;
+    margin-top: 0.75rem;
+  }
+
+  .dashboard-section-view {
+    gap: 0.85rem;
   }
 
   .home-countdown-card,
@@ -4369,6 +4452,63 @@ select:focus {
     width: min(100%, calc(100% - 1rem));
   }
 
+  .dashboard-container {
+    width: min(100%, calc(100% - 0.9rem));
+  }
+
+  .dashboard-page .section-heading {
+    margin-bottom: 0.75rem;
+  }
+
+  .dashboard-page .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+  }
+
+  .dashboard-page .stat-card {
+    min-height: 96px;
+    padding: 0.85rem;
+  }
+
+  .dashboard-page .stat-card svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .dashboard-page .stat-card strong,
+  .dashboard-page .stat-card span,
+  .dashboard-panel h2,
+  .dashboard-panel h3,
+  .panel-head h2 {
+    overflow-wrap: anywhere;
+  }
+
+  .dashboard-sidebar,
+  .dashboard-sidebar.is-collapsed {
+    padding: 0.55rem;
+    border-radius: 14px;
+  }
+
+  .dashboard-sidebar-head span {
+    font-size: 0.92rem;
+  }
+
+  .dashboard-sidebar-nav {
+    grid-auto-columns: minmax(112px, max-content);
+    gap: 0.36rem;
+  }
+
+  .dashboard-sidebar-nav button,
+  .dashboard-sidebar.is-collapsed .dashboard-sidebar-nav button {
+    min-height: 40px;
+    padding: 0.52rem 0.6rem;
+    font-size: 0.8rem;
+  }
+
+  .dashboard-sidebar-nav button span {
+    max-width: 8.5rem;
+  }
+
   .section-title {
     font-size: 1.45rem;
     line-height: 1.2;
@@ -4460,6 +4600,12 @@ select:focus {
     padding: 1rem;
   }
 
+  .dashboard-section-view,
+  .dashboard-grid,
+  .dashboard-content-grid {
+    gap: 0.75rem;
+  }
+
   .mobile-menu-panel {
     width: min(300px, 92vw);
     padding: 0.85rem;
@@ -4472,7 +4618,9 @@ select:focus {
   }
 
   .home-upcoming-title-block h2 {
-    font-size: clamp(2rem, 11vw, 2.7rem);
+    font-size: clamp(1.95rem, 9.5vw, 2.7rem);
+    line-height: 1.08;
+    padding-bottom: 0.12em;
   }
 
   .event-card-thumbnail {
@@ -4483,6 +4631,11 @@ select:focus {
   .event-card-badges,
   .event-card-meta {
     gap: 0.38rem;
+  }
+
+  .event-card-meta span {
+    max-width: 100%;
+    overflow-wrap: anywhere;
   }
 
   .event-card-badges span,
@@ -4548,6 +4701,59 @@ select:focus {
 
   .professional-scanner {
     gap: 0.85rem;
+  }
+}
+
+@media (max-width: 425px) {
+  .home-upcoming-section {
+    overflow: clip;
+  }
+
+  .dashboard-page .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-page .stat-card {
+    min-height: auto;
+  }
+
+  .dashboard-sidebar-nav {
+    grid-auto-columns: minmax(104px, max-content);
+  }
+
+  .dashboard-sidebar-nav button span {
+    max-width: 7rem;
+  }
+
+  .home-upcoming-header,
+  .home-upcoming-title-block,
+  .home-upcoming-control-panel,
+  .upcoming-list,
+  .upcoming-event-card,
+  .upcoming-event-card-link {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .home-upcoming-title-block h2 {
+    font-size: clamp(1.85rem, 9vw, 2.35rem);
+    line-height: 1.1;
+    overflow-wrap: normal;
+  }
+
+  .home-event-counter-grid span,
+  .event-card-badges span,
+  .event-card-meta span {
+    min-width: 0;
+  }
+
+  .premium-search-box {
+    padding-left: 0.8rem;
+  }
+
+  .premium-search-box input {
+    min-width: 0;
+    font-size: 0.9rem;
   }
 }
 

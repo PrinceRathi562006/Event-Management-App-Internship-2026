@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { CalendarDays, Clock, IndianRupee, MapPin, Ticket, UserPlus } from "lucide-react";
 import {
   AttendeeCounter,
@@ -17,6 +17,7 @@ import {
 import Container from "../components/ui/Container";
 import GlassCard from "../components/ui/GlassCard";
 import Loader from "../components/ui/Loader";
+import { logout } from "../redux/authSlice";
 import api from "../services/api";
 import { getApiMessage } from "../utils/forms";
 
@@ -44,6 +45,29 @@ function includesUser(items = [], userId) {
   return items.some((item) => item?._id === userId || item === userId);
 }
 
+function loadRazorpayCheckout() {
+  if (window.Razorpay) {
+    return Promise.resolve(true);
+  }
+
+  return new Promise((resolve) => {
+    const existingScript = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
+
+    if (existingScript) {
+      existingScript.addEventListener("load", () => resolve(Boolean(window.Razorpay)), { once: true });
+      existingScript.addEventListener("error", () => resolve(false), { once: true });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+    script.onload = () => resolve(Boolean(window.Razorpay));
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+}
+
 function canManageEvent(event, user) {
   if (!event || !user) {
     return false;
@@ -62,7 +86,8 @@ function canManageEvent(event, user) {
 function EventDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const user = useSelector((state) => state.auth.user);
+  const dispatch = useDispatch();
+  const { token, user } = useSelector((state) => state.auth);
   const [event, setEvent] = useState(null);
   const [ticket, setTicket] = useState(null);
   const [feedback, setFeedback] = useState({ rating: "5", review: "" });
@@ -117,8 +142,10 @@ function EventDetail() {
   const seatSelectionEnabled = event?.seatSelectionEnabled !== false;
 
   const startPayment = async (booking) => {
-    if (!window.Razorpay) {
-      toast.error("Razorpay checkout is not available. Check your internet connection.");
+    const razorpayReady = await loadRazorpayCheckout();
+
+    if (!razorpayReady) {
+      toast.error("Razorpay checkout could not load. Check your internet connection or browser blockers.");
       return;
     }
 
@@ -140,9 +167,9 @@ function EventDetail() {
       order_id: order.id,
       handler: async (paymentResponse) => {
         try {
-          await api.post("/payments/verify", paymentResponse);
+          const verifyResponse = await api.post("/payments/verify", paymentResponse);
           toast.success("Payment completed");
-          setTicket((current) => ({ ...current, paymentStatus: "Paid", isPaid: true }));
+          setTicket((current) => verifyResponse.data.booking || { ...current, paymentStatus: "Paid", isPaid: true });
         } catch (error) {
           toast.error(getApiMessage(error, "Payment verification failed"));
         }
@@ -182,6 +209,12 @@ function EventDetail() {
   };
 
   const bookEvent = async () => {
+    if (!user || !token) {
+      toast.error("Please login before registering for an event.");
+      navigate("/login");
+      return;
+    }
+
     setSaving(true);
 
     try {
@@ -199,6 +232,8 @@ function EventDetail() {
       }
     } catch (error) {
       if (error.response?.status === 401) {
+        dispatch(logout());
+        toast.error("Your session expired. Please login again.");
         navigate("/login");
         return;
       }
@@ -210,6 +245,12 @@ function EventDetail() {
   };
 
   const joinWaitlist = async () => {
+    if (!user || !token) {
+      toast.error("Please login before joining the waitlist.");
+      navigate("/login");
+      return;
+    }
+
     setSaving(true);
 
     try {
@@ -218,6 +259,8 @@ function EventDetail() {
       toast.success("You joined the waitlist. You will be notified when a seat opens.");
     } catch (error) {
       if (error.response?.status === 401) {
+        dispatch(logout());
+        toast.error("Your session expired. Please login again.");
         navigate("/login");
         return;
       }
@@ -297,11 +340,11 @@ function EventDetail() {
             <CountdownBlocks eventDate={event.eventDate} now={now} />
             {Number(event.availableSeats || 0) > 0 ? (
               <button className="primary-button" disabled={saving} onClick={bookEvent} type="button">
-                <Ticket size={18} /> {saving ? "Registering..." : "Register for event"}
+                <Ticket size={18} /> {!user || !token ? "Login to register" : saving ? "Registering..." : "Register for event"}
               </button>
             ) : (
               <button className="primary-button" disabled={saving} onClick={joinWaitlist} type="button">
-                <UserPlus size={18} /> {saving ? "Joining..." : "Join Waitlist"}
+                <UserPlus size={18} /> {!user || !token ? "Login to join waitlist" : saving ? "Joining..." : "Join Waitlist"}
               </button>
             )}
             {canManageEvent(event, user) && (
@@ -315,13 +358,19 @@ function EventDetail() {
         {ticket && (
           <GlassCard className="ticket-panel">
             <div>
-              <p className="eyebrow">{ticket.bookingStatus === "Waiting" ? "Waitlist joined" : "Registration confirmed"}</p>
-              <h2>{ticket.ticketNumber}</h2>
+              <p className="eyebrow">
+                {ticket.bookingStatus === "Waiting"
+                  ? "Waitlist joined"
+                  : ticket.paymentStatus === "Pending"
+                  ? "Payment pending"
+                  : "Registration confirmed"}
+              </p>
+              <h2>{ticket.paymentStatus === "Pending" ? "Complete payment" : ticket.ticketNumber}</h2>
               <p>
                 {ticket.bookingStatus === "Waiting"
                   ? "Seat Available notifications will unlock registration automatically when someone cancels."
                   : ticket.paymentStatus === "Pending"
-                  ? "Payment is pending. Complete payment before check-in."
+                  ? "Your seat is reserved temporarily. Complete Razorpay payment to generate your QR ticket."
                   : "Download or show this QR ticket at check-in."}
               </p>
               {ticket.seatNumber && <p>Seat: {ticket.seatNumber}</p>}

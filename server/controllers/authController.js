@@ -10,6 +10,9 @@ const { uploadFileToCloudinary, uploadToCloudinary } = require("../utils/cloudin
 
 const normalizeEmail = (email = "") => email.trim().toLowerCase();
 
+const otpPlainText = ({ name = "User", otp, purpose = "account verification" }) =>
+  `Hello ${name},\n\nYour Event Organizer OTP for ${purpose} is ${otp}.\n\nThis OTP expires in 5 minutes. Do not share it with anyone.\n\nTeam Event Organizer`;
+
 const getDuplicateMatches = (user, { email, phone }) => {
   const matches = [];
 
@@ -68,6 +71,11 @@ const createAndSendOtp = async ({ user, purpose, subject, html }) => {
   await sendEmail({
     to: user.email,
     subject,
+    text: otpPlainText({
+      name: user.name,
+      otp,
+      purpose: purpose === "FORGOT_PASSWORD" ? "password reset" : "account verification",
+    }),
     html: html(otp),
   });
 };
@@ -108,7 +116,8 @@ const createRegistrationOtp = async ({ email, registrationData }) => {
 const sendRegistrationOtpEmail = (email, name, otp) =>
   sendEmail({
     to: email,
-    subject: "Verify Your Email",
+    subject: "Your Event Organizer OTP",
+    text: otpPlainText({ name, otp, purpose: "account verification" }),
     html: otpTemplate(name, otp),
   });
 
@@ -519,6 +528,33 @@ exports.getEmailHealth = async (req, res, next) => {
       success: verification.success,
       ...sendEmail.getEmailStatus(),
       message: verification.message,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.sendEmailTest = async (req, res, next) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Admin access required.",
+      });
+    }
+
+    const to = normalizeEmail(req.body.to || req.user.email);
+
+    await sendEmail({
+      to,
+      subject: "Event Organizer Email Test",
+      text: "Email delivery test from Event Organizer backend.",
+      html: "<p>Email delivery test from Event Organizer backend.</p>",
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Test email sent to ${to}.`,
     });
   } catch (error) {
     next(error);
