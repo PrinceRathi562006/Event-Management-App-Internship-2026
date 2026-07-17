@@ -8,10 +8,12 @@ profiles, organizer approval, event approval, public event discovery, paid/free
 bookings, Razorpay payments, QR tickets, QR attendance, coordinator requests,
 feedback, expandable notifications, branded certificates, profile/settings,
 chart-based analytics dashboards, AI-assisted event creation, poster export,
-seat selection, waitlists, rich event pages, social sharing, Google Calendar
+seat selection controls, waitlists, rich event pages, social sharing, Google Calendar
 links, PWA installation, dark/light theme switching, volunteer operations,
 scan history, exports, reports, MongoDB-backed realtime organizer chat,
-editable volunteer settings, second-level countdowns, and gamified student profiles.
+resume upload/reading, professional QR scanning, dashboard sidebars,
+cinematic Three.js page backgrounds, editable volunteer settings,
+second-level countdowns, and gamified student profiles.
 Public event, featured event, calendar, poster, speaker, discussion, volunteer,
 and scan-history data are loaded from backend/user-created records only; the
 frontend does not ship sample event fallbacks.
@@ -27,6 +29,8 @@ Frontend:
 - Recharts
 - React Hot Toast
 - Lucide icons
+- Three.js cinematic canvas backgrounds
+- html5-qrcode professional camera scanner
 
 Backend:
 - Node.js
@@ -40,7 +44,8 @@ Backend:
 - PDFKit
 - QRCode
 - Socket.io realtime chat, counters, event rooms, and announcements
-- Local upload storage for chat attachments under uploads/chat
+- Cloudinary for deployed image/file uploads when configured
+- Local upload fallback for development uploads under uploads/
 
 3. User Roles
 
@@ -54,6 +59,7 @@ Student:
 - Receives certificate only if attendance is Present.
 - Can accept or reject student coordinator requests.
 - Accepted student coordinators can open event settings, view attendance rosters, mark QR attendance, and generate certificates for their assigned coordinator events.
+- Can upload a resume from Profile/Settings in PDF, Word, RTF, TXT, or ODT format.
 
 Organizer:
 - Registers with department, designation, date of birth, and profile image.
@@ -67,6 +73,7 @@ Organizer:
 - Manages own/assigned/coordinated events.
 - Scans QR tickets and generates certificates.
 - Uses editable volunteer assignment, QR scanner history, CSV export, completion report panels, and navbar Organizer Chat.
+- Can view registered student resumes from registration details when students upload them.
 
 Admin:
 - Full platform access.
@@ -75,6 +82,7 @@ Admin:
 - Creates events.
 - Manages users and analytics.
 - Views attendance heatmap, admin analytics, operations panels, exports, cancellation/refund status, and navbar Organizer Chat.
+- Can view uploaded student/organizer resumes from registration details and user management.
 
 4. Registration Flow
 
@@ -95,7 +103,9 @@ Admin:
 5. Organizer-created events are Pending.
 6. Admin reviews and approves/rejects.
 7. Only Approved and Published events appear publicly.
-8. Event Settings can update event details, last date of registration, certificate signature, and partner companies later.
+8. Event Settings can update event details, last date of registration, certificate signature, partner companies, and the choose-seat option later.
+9. Admins, organizers, and accepted coordinators can enable or disable choose-seat for each event from Event Settings.
+10. Disabling choose-seat clears saved seat labels for that event and hides the seat picker on Event Detail.
 
 6. Coordinator Flow
 
@@ -114,7 +124,7 @@ Admin:
 2. Chat messages are saved in MongoDB through OrganizerChatMessage.
 3. Socket.io broadcasts new messages live to the organizer-chat room.
 4. Users can send text, reply to previous messages, and upload images/documents/files as attachments.
-5. Attachments are stored under backend uploads/chat and served through the existing uploads static route.
+5. Attachments are uploaded to Cloudinary when Cloudinary is configured; local uploads/chat storage is used as a development fallback.
 6. Dashboard no longer contains Organizer Chat; dashboard keeps Volunteer Management as editable event operations.
 7. The frontend loads chat history from /api/chat/organizer/messages and then listens for live organizer-chat-message events.
 8. The frontend dynamically loads the Socket.io client from the backend so no separate client package is required.
@@ -124,12 +134,12 @@ Admin:
 
 1. Student books an approved event.
 2. System creates a Booking ID like EVT-2026-000123.
-3. QR code is generated with Booking ID, User ID, Event ID, and Ticket Number.
+3. QR code is generated with a signed attendance token plus Booking ID, Registration ID, Event ID, and Ticket Number fallback metadata.
 4. Student receives a registration email with event details and attached QR ticket image.
 5. Free events are marked Paid automatically.
 6. Paid events use the exact fee added by organizer/admin.
 7. Razorpay order amount is created from the saved booking amount.
-8. Students can choose a preferred seat number during registration.
+8. Students can choose a preferred seat number during registration only when choose-seat is enabled for the event.
 9. If seats are full, students can join the waitlist instead of registering.
 10. When a booking is cancelled, the oldest waitlisted booking is promoted and receives a Seat Available notification.
 11. Paid booking cancellation stores Refund Initiated status.
@@ -137,18 +147,21 @@ Admin:
 
 8. Attendance And Certificates
 
-1. Assigned organizers, student coordinators, organizer coordinators, and admins scan QR tickets.
-2. Booking is verified.
-3. Duplicate scans are blocked.
-4. Attendance is marked Present.
-5. Organizer/admin/coordinator attendance roster shows Total Registered, Present Students, and Absent Students.
-6. Clicking a student opens full student and booking details.
-7. Organizer/admin/coordinator generates certificate after attendance is Present.
-8. Certificate PDF includes organizer signature image and partner companies when they are added to the event.
-9. Certificate PDF is saved under backend uploads.
-10. Student receives an email with download link and attached PDF.
-11. Certificate verification is supported through QR/booking identity on generated certificate and ticket flows.
-12. Printable ID-card style data is available through student/booking details and QR ticket information.
+1. Assigned organizers, student coordinators, organizer coordinators, and admins scan QR tickets with the professional camera scanner or manual code entry.
+2. Scanner accepts signed QR payloads, token-only QR codes, booking/ticket IDs, and URL-style QR payloads.
+3. Booking is verified against the selected event, so other-event QR codes are rejected.
+4. Duplicate scans are blocked.
+5. Scanner opens an attendance preview before marking Present or Absent.
+6. Attendance can be marked Present or Absent from the scanner preview.
+7. Organizer/admin/coordinator attendance roster shows Total Registered, Present Students, and Absent Students.
+8. Clicking a student opens full student, booking, resume, and seat details.
+9. Organizer/admin/coordinator can edit or remove a registered user's seat assignment from the dashboard.
+10. Organizer/admin/coordinator generates certificate after attendance is Present.
+11. Certificate PDF includes organizer signature image and partner companies when they are added to the event.
+12. Certificate PDF is saved under backend uploads.
+13. Student receives an email with download link and attached PDF.
+14. Certificate verification is supported through QR/booking identity on generated certificate and ticket flows.
+15. Printable ID-card style data is available through student/booking details and QR ticket information.
 
 8A. Notifications
 
@@ -159,19 +172,19 @@ Admin:
 
 9. Main Pages
 
-- Home: backend-driven calendar section, hero, event countdown with seconds, featured events, categories, and empty states when no approved events are returned.
+- Home: backend-driven calendar section, cinematic Three.js hero, premium animated Upcoming Events section, event countdown with seconds, featured events, categories, smooth scrolling, and empty states when no approved events are returned.
 - Events: public approved events with smart search by name, organizer, venue, date, and category; full category filters; wishlist; and nearby-events filtering.
-- Event Detail: booking, payment, seat selection, waitlist, countdown with seconds, live attendee counter, timeline, digital badges, uploaded gallery, user discussion, social sharing, Google Calendar link, feedback analytics, ticket details, and backend speaker profiles.
+- Event Detail: booking, payment, optional seat selection, waitlist, countdown with seconds, live attendee counter, timeline, digital badges, uploaded gallery, user discussion, social sharing, Google Calendar link, feedback analytics, ticket details, and backend speaker profiles. Event Detail intentionally uses the standard page background without cinematic animation.
 - Calendar: responsive monthly event highlights with compact icon controls, light/dark mode styling, normal event highlighting for today/future event dates, and #f0a4a4 highlighting for past event dates.
-- Dashboard: role-based stats and actions, event detail links, chart-based analytics, registration trend analysis, admin analytics, attendance heatmap, user-added volunteer management, backend scan history, exports, total registered/present/absent attendance summaries, and present/upcoming/past event labels.
+- Dashboard: role-based stats and actions, user-name title, collapsible sidebar with icons, full-size section views, event detail links, chart-based analytics, registration trend analysis, admin analytics, attendance heatmap, user-added volunteer management, professional QR scanner, backend scan history, exports, total registered/present/absent attendance summaries, seat editor, resume links, and present/upcoming/past event labels.
 - Dashboard: coordinator request accept/reject panel for students and organizers.
 - Dashboard: profile details card with a View Profile button.
 - Create Event: dedicated event creation page with AI description generator, poster generator, timeline, badges, last date of registration, certificate signature, and partner company fields.
-- Event Settings: update event, last date of registration, certificate branding, and send coordinator requests.
-- Profile: read-only account details including date of birth, profile completion progress, resume integration guidance, and achievements.
-- Settings: editable profile/account details including date of birth.
+- Event Settings: update event, last date of registration, certificate branding, choose-seat availability, gallery/banner/signature removal, and send coordinator requests.
+- Profile: read-only account details including date of birth, profile completion progress, uploaded resume link, resume integration guidance, and achievements.
+- Settings: editable profile/account details including date of birth, profile image, password, and resume upload.
 - Admin: users, approvals, analytics, attendance roster, event management.
-- Global UI: dark/light theme switching with mode-aware text/background colors, navbar Organizer Chat, and PWA install support.
+- Global UI: dark/light theme switching with mode-aware text/background colors, navbar Organizer Chat, Three.js cinematic page backgrounds on auth/profile/certificate/create/settings-style pages, and PWA install support.
 
 9A. Advanced Feature Requirements Added
 
@@ -179,7 +192,7 @@ The latest requirements are covered through a mix of backend-supported flows and
 
 - AI Event Description Generator: Create Event generates description, agenda, learning outcomes, and requirements locally without paid AI credits.
 - AI Poster Generator: Create Event exports a generated SVG poster from title, date, venue, and theme.
-- Seat Selection: Event Detail shows a stage and seat grid and sends selected seat to booking.
+- Seat Selection: Event Settings can enable/disable choose-seat per event; Event Detail shows a stage and seat grid only when enabled; dashboard seat editor lets admin/organizer/coordinator save or remove a registration seat.
 - Waitlist System: Full-event registrations can join waitlist; cancellation promotes the oldest waiting user.
 - Event Countdown: Home and Event Detail show days, hours, minutes, and seconds with one-second updates.
 - Live Attendee Counter: Event Detail displays registered, checked-in, and pending counters with Socket.io-ready data shape.
@@ -193,7 +206,7 @@ The latest requirements are covered through a mix of backend-supported flows and
 - Organizer Chat: Navbar includes MongoDB-backed realtime group chat for admins, organizers, and assigned coordinators, including replies and image/document/file attachments.
 - Registration Trend Analysis: Dashboard charts show daily registrations, cumulative growth, daily change, total, peak day, average per active day, and last 7 days count.
 - Attendance Summary: Dashboard attendance roster shows Total Registered, Present Students, and Absent Students before the detailed lists.
-- QR Scanner History: Dashboard shows backend registration/check-in history and an empty state when no scans exist.
+- Professional QR Scanner: Dashboard camera scanner supports manual entry, camera switching, torch control, scan preview, scan history, Present/Absent marking, same-event validation, duplicate blocking, and signed-token fallback parsing.
 - Event Cancellation Refund: Paid cancelled bookings and cancelled events are marked Refund Initiated.
 - Printable ID Cards: QR ticket and student/booking data provide printable ID-card source data.
 - Event Categories: Workshop, Hackathon, Sports, Seminar, Cultural, Technical, Placement, Fest, Competition, Conference, and Other.
@@ -208,7 +221,7 @@ The latest requirements are covered through a mix of backend-supported flows and
 - Certificate Verification: Certificate/ticket identity and QR flows support verification.
 - Admin Analytics: Admin dashboard cards and charts show platform activity.
 - User Profile Completion: Profile shows progress and missing fields.
-- Resume Integration: Profile/registration details surface resume workflow requirements.
+- Resume Integration: users can upload resumes in PDF, Word, RTF, TXT, or ODT format; admins, organizers, and coordinators can open uploaded resumes from registration and user-management views. Cloudinary is used in deployment when configured.
 - Event Sponsors: event partner-company fields support sponsor/partner data added by organizers.
 - Speaker Profiles: Event Detail renders speaker photo, LinkedIn, bio/session-ready fields.
 - Event Discussion Forum: Event Detail starts with no posts and supports user-added ask/reply/like style discussion.
@@ -220,11 +233,21 @@ The latest requirements are covered through a mix of backend-supported flows and
 
 10. Deployment Checklist
 
+Current live URLs:
+- Backend API base: https://event-management-app-g3ca.onrender.com/api
+- Backend health root: https://event-management-app-g3ca.onrender.com
+- Frontend: https://event-management-app-ashy.vercel.app
+
+Current deployment targets:
+- Backend: Render Web Service from server/
+- Frontend: Vercel static/Vite deployment from client/
+
 Backend environment variables:
 - PORT
 - NODE_ENV
 - MONGO_URI
 - JWT_SECRET
+- QR_ATTENDANCE_SECRET
 - JWT_EXPIRE
 - CLIENT_URL
 - API_RATE_LIMIT_MAX
@@ -233,6 +256,7 @@ Backend environment variables:
 - EMAIL_PASS
 - RAZORPAY_KEY_ID
 - RAZORPAY_KEY_SECRET
+- RAZORPAY_SECRET
 - CLOUDINARY_CLOUD_NAME
 - CLOUDINARY_API_KEY
 - CLOUDINARY_API_SECRET
@@ -241,16 +265,27 @@ Frontend environment variables:
 - VITE_API_URL
 - VITE_RAZORPAY_KEY_ID
 
+Current frontend API value:
+- VITE_API_URL=https://event-management-app-g3ca.onrender.com/api
+
+Current server CORS/client value:
+- CLIENT_URL=https://event-management-app-ashy.vercel.app
+
 Before deployment:
 - Use a production MongoDB connection string.
 - Use a long random JWT secret.
+- Use a separate long random QR_ATTENDANCE_SECRET for attendance QR tokens.
 - Set CLIENT_URL to deployed frontend URL. Multiple frontend URLs can be comma-separated.
 - Set VITE_API_URL to deployed backend API URL when frontend and backend are on different domains.
 - If VITE_API_URL is not set in production, the frontend uses same-origin /api instead of localhost:5000.
 - Add Razorpay live keys for production.
-- Add Cloudinary keys for uploads.
+- Add Cloudinary keys for deployed uploads. Event images, profile images, resumes, and chat attachments are safest with Cloudinary because Render's free filesystem is not durable across deploys/restarts.
 - Add Gmail app password or SMTP credentials for emails.
 - Rotate any keys that were committed or shared during development.
+- Vercel uses client/vercel.json to rewrite all routes to /index.html so React Router deep links work after refresh.
+- Client .env files are ignored; configure VITE_API_URL and VITE_RAZORPAY_KEY_ID in Vercel Project Settings.
+- Server .env files are ignored; configure server variables in Render Environment.
+- After changing CLIENT_URL in Render, redeploy the backend so CORS and Socket.io pick up the new frontend URL.
 
 11. Verification Checklist
 
@@ -277,6 +312,9 @@ Before deployment:
 - Dashboard Volunteer Management allows editing volunteer name, duty, status, adding volunteers, and removing volunteers.
 - Dashboard registration trend graph shows analysis metrics and combined daily/cumulative/change data.
 - Dashboard attendance roster shows Total Registered, Present Students, and Absent Students.
+- Dashboard sidebar opens one section at a time and collapses to icons.
+- Dashboard title shows the logged-in user's name instead of a generic admin panel title.
+- Dashboard registration details show resume and seat controls when data is available.
 - Countdown displays seconds and updates every second.
 - Dark mode keeps text readable in navbar chat, dashboard cards, inputs, and analytics panels.
 - Home, Events, Calendar, and Event Detail do not render bundled sample events when the backend has no event data.
@@ -284,6 +322,8 @@ Before deployment:
 - Create Event AI generation fills description, agenda, outcomes, and requirements.
 - Create Event poster download produces an SVG poster.
 - Event Detail seat selection passes a seat number when booking.
+- Event Settings choose-seat toggle hides/removes seat selection for the event.
+- Dashboard seat editor can save and remove seats for a selected registration.
 - Full event waitlist creates a Waiting booking.
 - Cancelling a booking promotes the oldest waitlisted booking.
 - Event cancellation marks paid bookings Refund Initiated.
@@ -291,6 +331,12 @@ Before deployment:
 - Event cards and Event Detail posters only show uploaded/backend poster URLs; missing posters use empty states.
 - Theme toggle persists across reloads.
 - Production build includes manifest and service worker for PWA installation.
+- Vercel refresh/deep-link routes work because client/vercel.json rewrites to /index.html.
+- Deployed frontend reaches Render API through VITE_API_URL.
+- Render backend accepts Vercel frontend origin through CLIENT_URL.
+- Socket.io scanner/attendance updates connect to the Render backend from the Vercel frontend.
+- Resume uploads open from Profile, Dashboard registration details, and Admin Manage Users.
+- QR scanner handles the generated registration QR and rejects QR codes from other events.
 
 12. Known Local Development Notes
 
@@ -298,3 +344,5 @@ Before deployment:
 - In production, configure VITE_API_URL for a separate backend domain or deploy the frontend behind the same domain so /api reaches the backend.
 - Vite/React development warnings about preloaded resources or WebSocket back-forward cache are browser/dev-server warnings, not production API failures.
 - If emails are not configured, development mode logs email content instead of sending.
+- If Cloudinary is not configured, uploads fall back to local server/uploads folders. This is fine locally, but not reliable for long-term files on Render free instances.
+- Vite may warn about chunks larger than 500 kB after minification. Current build passes; code-splitting can be added later for performance.
