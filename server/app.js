@@ -129,4 +129,17 @@ app.use((req, res) => {
 
 app.use(require("./middleware/errorMiddleware"));
 
+
+app.get("/verify-email", async (req, res) => {
+  try {
+    const result = await sendEmail.verifyTransport();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({
+      message: err.message,
+      stack: err.stack,
+    });
+  }
+});
+
 module.exports = app;
