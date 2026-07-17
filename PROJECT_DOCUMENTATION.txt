@@ -89,10 +89,12 @@ Admin:
 1. User fills registration form.
 2. Server checks duplicate email and phone.
 3. Registration data is stored temporarily with OTP.
-4. No User document is created before OTP verification.
-5. User verifies OTP.
-6. User document is created in MongoDB.
-7. Organizer accounts start as Pending Approval.
+4. OTP is saved first and the response returns quickly; the OTP email is queued in the background so account creation does not wait on SMTP latency.
+5. No User document is created before OTP verification for new registrations.
+6. User verifies OTP.
+7. User document is created in MongoDB.
+8. Older unverified User records can also verify with a resend OTP.
+9. Organizer accounts start as Pending Approval.
 
 5. Event Flow
 
@@ -286,10 +288,13 @@ Before deployment:
 - Client .env files are ignored; configure VITE_API_URL and VITE_RAZORPAY_KEY_ID in Vercel Project Settings.
 - Server .env files are ignored; configure server variables in Render Environment.
 - After changing CLIENT_URL in Render, redeploy the backend so CORS and Socket.io pick up the new frontend URL.
+- After auth route changes, redeploy Render so /api/auth/resend-otp and /api/auth/otp/resend are available in production.
 
 11. Verification Checklist
 
 - Register student, verify OTP, then login.
+- Register page should respond quickly after saving OTP; email delivery can continue in the background.
+- Resend OTP works at /api/auth/resend-otp and compatibility path /api/auth/otp/resend.
 - Register organizer, verify OTP, admin approves organizer.
 - Organizer creates event.
 - Admin approves event.
@@ -337,6 +342,8 @@ Before deployment:
 - Socket.io scanner/attendance updates connect to the Render backend from the Vercel frontend.
 - Resume uploads open from Profile, Dashboard registration details, and Admin Manage Users.
 - QR scanner handles the generated registration QR and rejects QR codes from other events.
+- Small-screen pages do not create horizontal overflow in dashboard, upcoming events, scanner, forms, and mobile menu.
+- Three.js cinematic backgrounds do not use deprecated THREE.Clock.
 
 12. Known Local Development Notes
 
@@ -346,3 +353,4 @@ Before deployment:
 - If emails are not configured, development mode logs email content instead of sending.
 - If Cloudinary is not configured, uploads fall back to local server/uploads folders. This is fine locally, but not reliable for long-term files on Render free instances.
 - Vite may warn about chunks larger than 500 kB after minification. Current build passes; code-splitting can be added later for performance.
+- If the deployed frontend reports 404 for /api/auth/resend-otp while local route checks pass, redeploy the Render backend because the live service is running an older build.

@@ -72,7 +72,23 @@ const createAndSendOtp = async ({ user, purpose, subject, html }) => {
   });
 };
 
-const createAndSendRegistrationOtp = async ({ email, name, registrationData }) => {
+const createUserOtp = async ({ user, purpose }) => {
+  await OTP.deleteMany({ user: user._id, purpose });
+
+  const otp = generateOTP();
+
+  await OTP.create({
+    user: user._id,
+    email: user.email,
+    otp,
+    purpose,
+    expiresAt: generateOTPExpiry(),
+  });
+
+  return otp;
+};
+
+const createRegistrationOtp = async ({ email, registrationData }) => {
   await OTP.deleteMany({ email, purpose: "REGISTER" });
 
   const otp = generateOTP();
@@ -86,11 +102,27 @@ const createAndSendRegistrationOtp = async ({ email, name, registrationData }) =
     expiresAt: generateOTPExpiry(),
   });
 
-  await sendEmail({
+  return otp;
+};
+
+const sendRegistrationOtpEmail = (email, name, otp) =>
+  sendEmail({
     to: email,
     subject: "Verify Your Email",
     html: otpTemplate(name, otp),
   });
+
+const sendEmailInBackground = (task, label = "Email") => {
+  Promise.resolve()
+    .then(task)
+    .catch((error) => {
+      console.error(`${label} failed:`, error.message);
+    });
+};
+
+const createAndQueueRegistrationOtp = async ({ email, name, registrationData }) => {
+  const otp = await createRegistrationOtp({ email, registrationData });
+  sendEmailInBackground(() => sendRegistrationOtpEmail(email, name, otp), "Registration OTP email");
 };
 
 exports.registerUser = async (req, res, next) => {
@@ -135,12 +167,8 @@ exports.registerUser = async (req, res, next) => {
       const matchedLabels = duplicateMatches.map((match) => match.label).join(" and ");
 
       if (!existingUser.isVerified && existingUser.email === normalizedEmail) {
-        await createAndSendOtp({
-          user: existingUser,
-          purpose: "REGISTER",
-          subject: "Verify Your Email",
-          html: (otp) => otpTemplate(existingUser.name, otp),
-        });
+        const otp = await createUserOtp({ user: existingUser, purpose: "REGISTER" });
+        sendEmailInBackground(() => sendRegistrationOtpEmail(existingUser.email, existingUser.name, otp), "Registration OTP email");
 
         return res.status(200).json({
           success: true,
@@ -197,7 +225,7 @@ exports.registerUser = async (req, res, next) => {
       }
 
       if (pendingRegistration.email === normalizedEmail) {
-        await createAndSendRegistrationOtp({
+        await createAndQueueRegistrationOtp({
           email: normalizedEmail,
           name,
           registrationData: {
@@ -273,7 +301,7 @@ exports.registerUser = async (req, res, next) => {
       registrationData.rollNumber = rollNumber;
     }
 
-    await createAndSendRegistrationOtp({
+    await createAndQueueRegistrationOtp({
       email: normalizedEmail,
       name,
       registrationData,
@@ -300,9 +328,35 @@ exports.verifyRegistrationOTP = async (req, res, next) => {
     const existingUser = await User.findOne({ email });
 
     if (existingUser) {
-      return res.status(409).json({
-        success: false,
-        message: "Account already exists. Please login.",
+      if (existingUser.isVerified) {
+        return res.status(409).json({
+          success: false,
+          message: "Account already exists. Please login.",
+        });
+      }
+
+      const result = await findValidOtp({
+        user: existingUser,
+        email,
+        otp,
+        purpose: "REGISTER",
+      });
+
+      if (result.error) {
+        return res.status(400).json({ success: false, message: result.error });
+      }
+
+      existingUser.isVerified = true;
+      existingUser.otpVerified = true;
+      await existingUser.save();
+      await OTP.deleteOne({ _id: result.otpDoc._id });
+
+      existingUser.password = undefined;
+
+      return res.status(200).json({
+        success: true,
+        message: "Email verified successfully. Please login.",
+        user: existingUser,
       });
     }
 
@@ -427,7 +481,7 @@ exports.resendOTP = async (req, res, next) => {
         });
       }
 
-      await createAndSendRegistrationOtp({
+      await createAndQueueRegistrationOtp({
         email,
         name: pendingRegistration.registrationData.name,
         registrationData: pendingRegistration.registrationData,
@@ -446,12 +500,8 @@ exports.resendOTP = async (req, res, next) => {
       });
     }
 
-    await createAndSendOtp({
-      user,
-      purpose: "REGISTER",
-      subject: "Verify Your Email",
-      html: (otp) => otpTemplate(user.name, otp),
-    });
+    const otp = await createUserOtp({ user, purpose: "REGISTER" });
+    sendEmailInBackground(() => sendRegistrationOtpEmail(user.email, user.name, otp), "Registration OTP email");
 
     return res.status(200).json({
       success: true,

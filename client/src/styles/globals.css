@@ -4365,6 +4365,19 @@ select:focus {
 }
 
 @media (max-width: 520px) {
+  .container {
+    width: min(100%, calc(100% - 1rem));
+  }
+
+  .section-title {
+    font-size: 1.45rem;
+    line-height: 1.2;
+  }
+
+  .section-subtitle {
+    font-size: 0.9rem;
+  }
+
   .calendar-card {
     padding: 0.85rem;
   }
@@ -4411,16 +4424,17 @@ select:focus {
   }
 
   .hero-copy h1 {
-    font-size: clamp(2.55rem, 14vw, 3.5rem);
+    font-size: clamp(2.2rem, 12vw, 3rem);
+    line-height: 1.02;
   }
 
   .hero-section-cinematic {
-    min-height: 720px;
-    padding-top: 3.25rem;
+    min-height: 620px;
+    padding-top: 2.65rem;
   }
 
   .hero-section-cinematic .hero-grid {
-    min-height: 620px;
+    min-height: 540px;
   }
 
   .hero-media-stack {
@@ -4440,8 +4454,73 @@ select:focus {
   .ticket-panel,
   .info-panel,
   .calendar-card,
-  .empty-state {
+  .empty-state,
+  .auth-card,
+  .registration-detail {
     padding: 1rem;
+  }
+
+  .mobile-menu-panel {
+    width: min(300px, 92vw);
+    padding: 0.85rem;
+  }
+
+  .home-event-counter-grid,
+  .analytics-counters {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .home-upcoming-title-block h2 {
+    font-size: clamp(2rem, 11vw, 2.7rem);
+  }
+
+  .event-card-thumbnail {
+    aspect-ratio: 16 / 9;
+    border-radius: 16px;
+  }
+
+  .event-card-badges,
+  .event-card-meta {
+    gap: 0.38rem;
+  }
+
+  .event-card-badges span,
+  .event-card-meta span,
+  .event-price,
+  .premium-event-button {
+    font-size: 0.76rem;
+  }
+
+  .premium-event-button {
+    width: 100%;
+  }
+
+  .row-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .row-actions select,
+  .row-actions .primary-button,
+  .row-actions .secondary-button,
+  .row-actions .danger-button,
+  .action-form .primary-button,
+  .action-form .secondary-button {
+    width: 100%;
+  }
+
+  .list-row {
+    gap: 0.75rem;
+    padding: 0.85rem;
+  }
+
+  .compact-detail-grid p {
+    gap: 0.2rem;
+  }
+
+  .seat-edit-form {
+    padding: 0.75rem;
   }
 
   .scanner-toolbar {
@@ -4461,9 +4540,28 @@ select:focus {
     grid-template-columns: 1fr;
     align-items: start;
   }
+
+  .scanner-head h2,
+  .attendance-preview h3 {
+    font-size: 1.25rem;
+  }
+
+  .professional-scanner {
+    gap: 0.85rem;
+  }
 }
 
 @media (max-width: 380px) {
+  .container {
+    width: min(100%, calc(100% - 0.75rem));
+  }
+
+  .primary-button,
+  .secondary-button,
+  .danger-button {
+    padding-inline: 0.75rem;
+  }
+
   .calendar-card {
     padding: 0.65rem;
   }
@@ -4485,6 +4583,29 @@ select:focus {
   .calendar-card .react-calendar__tile {
     min-height: 32px;
     font-size: 0.76rem;
+  }
+
+  .dashboard-sidebar-nav button,
+  .dashboard-sidebar.is-collapsed .dashboard-sidebar-nav button {
+    min-height: 40px;
+    padding: 0.55rem 0.65rem;
+    font-size: 0.82rem;
+  }
+
+  .hero-section-cinematic {
+    min-height: 580px;
+  }
+
+  .hero-section-cinematic .hero-grid {
+    min-height: 500px;
+  }
+
+  .hero-media-stack,
+  .hero-video,
+  .scanner-frame,
+  #professional-attendance-scanner,
+  #professional-attendance-scanner video {
+    min-height: 220px;
   }
 }
 
