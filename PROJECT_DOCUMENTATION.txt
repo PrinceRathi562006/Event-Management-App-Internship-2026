@@ -89,12 +89,14 @@ Admin:
 1. User fills registration form.
 2. Server checks duplicate email and phone.
 3. Registration data is stored temporarily with OTP.
-4. OTP is saved first and the response returns quickly; the OTP email is queued in the background so account creation does not wait on SMTP latency.
+4. OTP is saved first, then the server sends the OTP email with a hard timeout so signup cannot hang indefinitely.
 5. No User document is created before OTP verification for new registrations.
 6. User verifies OTP.
 7. User document is created in MongoDB.
 8. Older unverified User records can also verify with a resend OTP.
 9. Organizer accounts start as Pending Approval.
+10. Resend OTP supports both /api/auth/resend-otp and /api/auth/otp/resend for route compatibility.
+11. Admins can check email configuration with protected GET /api/auth/email-health.
 
 5. Event Flow
 
@@ -256,6 +258,13 @@ Backend environment variables:
 - SUPPORT_EMAIL
 - EMAIL_USER
 - EMAIL_PASS
+- EMAIL_SERVICE
+- EMAIL_TIMEOUT_MS
+- SMTP_HOST
+- SMTP_PORT
+- SMTP_SECURE
+- SMTP_USER
+- SMTP_PASS
 - RAZORPAY_KEY_ID
 - RAZORPAY_KEY_SECRET
 - RAZORPAY_SECRET
@@ -283,18 +292,20 @@ Before deployment:
 - Add Razorpay live keys for production.
 - Add Cloudinary keys for deployed uploads. Event images, profile images, resumes, and chat attachments are safest with Cloudinary because Render's free filesystem is not durable across deploys/restarts.
 - Add Gmail app password or SMTP credentials for emails.
+- Gmail app passwords are normalized by removing spaces, so either "abcd efgh..." or "abcdefghijklmnop" format can work.
 - Rotate any keys that were committed or shared during development.
 - Vercel uses client/vercel.json to rewrite all routes to /index.html so React Router deep links work after refresh.
 - Client .env files are ignored; configure VITE_API_URL and VITE_RAZORPAY_KEY_ID in Vercel Project Settings.
 - Server .env files are ignored; configure server variables in Render Environment.
 - After changing CLIENT_URL in Render, redeploy the backend so CORS and Socket.io pick up the new frontend URL.
-- After auth route changes, redeploy Render so /api/auth/resend-otp and /api/auth/otp/resend are available in production.
+- After auth route changes, redeploy Render so /api/auth/resend-otp, /api/auth/otp/resend, and /api/auth/email-health are available in production.
 
 11. Verification Checklist
 
 - Register student, verify OTP, then login.
-- Register page should respond quickly after saving OTP; email delivery can continue in the background.
+- Register page should either send OTP successfully or show a clear email error within the configured timeout.
 - Resend OTP works at /api/auth/resend-otp and compatibility path /api/auth/otp/resend.
+- Admin email health endpoint confirms whether Render can connect to the configured mail service.
 - Register organizer, verify OTP, admin approves organizer.
 - Organizer creates event.
 - Admin approves event.
@@ -354,3 +365,4 @@ Before deployment:
 - If Cloudinary is not configured, uploads fall back to local server/uploads folders. This is fine locally, but not reliable for long-term files on Render free instances.
 - Vite may warn about chunks larger than 500 kB after minification. Current build passes; code-splitting can be added later for performance.
 - If the deployed frontend reports 404 for /api/auth/resend-otp while local route checks pass, redeploy the Render backend because the live service is running an older build.
+- If email health times out or fails on Render, verify EMAIL_USER and EMAIL_PASS are set in Render, use a Gmail App Password instead of a normal account password, or configure SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASS.

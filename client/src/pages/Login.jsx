@@ -5,6 +5,7 @@ import { Link, useNavigate } from "react-router-dom";
 import CinematicHeroBackground from "../components/features/CinematicHeroBackground";
 import Container from "../components/ui/Container";
 import GlassCard from "../components/ui/GlassCard";
+import PasswordField from "../components/ui/PasswordField";
 import { setCredentials } from "../redux/authSlice";
 import api from "../services/api";
 import { getApiMessage } from "../utils/forms";
@@ -50,10 +51,10 @@ function Login() {
               type="email"
               value={form.email}
             />
-            <input
+            <PasswordField
+              autoComplete="current-password"
               onChange={(event) => setForm({ ...form, password: event.target.value })}
               placeholder="Password"
-              type="password"
               value={form.password}
             />
             <button className="primary-button" disabled={loading} type="submit">

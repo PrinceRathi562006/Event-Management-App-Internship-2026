@@ -20,6 +20,7 @@ const {
   updateProfile,
   uploadProfileImage,
   uploadResume,
+  getEmailHealth,
   logout,
 } = authController;
 
@@ -210,6 +211,12 @@ router.put(
   protect,
   resumeUpload.single("resume"),
   uploadResume
+);
+
+router.get(
+  "/email-health",
+  protect,
+  getEmailHealth
 );
 
 // Change Password

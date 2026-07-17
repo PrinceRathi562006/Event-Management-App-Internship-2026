@@ -46,7 +46,15 @@ function VerifyEmail() {
     setLoading(true);
 
     try {
-      await api.post("/auth/resend-otp", { email: form.email });
+      try {
+        await api.post("/auth/resend-otp", { email: form.email });
+      } catch (error) {
+        if (error.response?.status !== 404) {
+          throw error;
+        }
+
+        await api.post("/auth/otp/resend", { email: form.email });
+      }
       toast.success("OTP sent again");
     } catch (error) {
       toast.error(error.response?.data?.message || "Could not resend OTP");

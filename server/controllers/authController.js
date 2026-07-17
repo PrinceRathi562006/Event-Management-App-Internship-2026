@@ -112,17 +112,9 @@ const sendRegistrationOtpEmail = (email, name, otp) =>
     html: otpTemplate(name, otp),
   });
 
-const sendEmailInBackground = (task, label = "Email") => {
-  Promise.resolve()
-    .then(task)
-    .catch((error) => {
-      console.error(`${label} failed:`, error.message);
-    });
-};
-
-const createAndQueueRegistrationOtp = async ({ email, name, registrationData }) => {
+const createAndSendRegistrationOtp = async ({ email, name, registrationData }) => {
   const otp = await createRegistrationOtp({ email, registrationData });
-  sendEmailInBackground(() => sendRegistrationOtpEmail(email, name, otp), "Registration OTP email");
+  await sendRegistrationOtpEmail(email, name, otp);
 };
 
 exports.registerUser = async (req, res, next) => {
@@ -168,7 +160,7 @@ exports.registerUser = async (req, res, next) => {
 
       if (!existingUser.isVerified && existingUser.email === normalizedEmail) {
         const otp = await createUserOtp({ user: existingUser, purpose: "REGISTER" });
-        sendEmailInBackground(() => sendRegistrationOtpEmail(existingUser.email, existingUser.name, otp), "Registration OTP email");
+        await sendRegistrationOtpEmail(existingUser.email, existingUser.name, otp);
 
         return res.status(200).json({
           success: true,
@@ -225,7 +217,7 @@ exports.registerUser = async (req, res, next) => {
       }
 
       if (pendingRegistration.email === normalizedEmail) {
-        await createAndQueueRegistrationOtp({
+        await createAndSendRegistrationOtp({
           email: normalizedEmail,
           name,
           registrationData: {
@@ -301,7 +293,7 @@ exports.registerUser = async (req, res, next) => {
       registrationData.rollNumber = rollNumber;
     }
 
-    await createAndQueueRegistrationOtp({
+    await createAndSendRegistrationOtp({
       email: normalizedEmail,
       name,
       registrationData,
@@ -481,11 +473,11 @@ exports.resendOTP = async (req, res, next) => {
         });
       }
 
-      await createAndQueueRegistrationOtp({
+      const otp = await createRegistrationOtp({
         email,
-        name: pendingRegistration.registrationData.name,
         registrationData: pendingRegistration.registrationData,
       });
+      await sendRegistrationOtpEmail(email, pendingRegistration.registrationData.name, otp);
 
       return res.status(200).json({
         success: true,
@@ -501,11 +493,32 @@ exports.resendOTP = async (req, res, next) => {
     }
 
     const otp = await createUserOtp({ user, purpose: "REGISTER" });
-    sendEmailInBackground(() => sendRegistrationOtpEmail(user.email, user.name, otp), "Registration OTP email");
+    await sendRegistrationOtpEmail(user.email, user.name, otp);
 
     return res.status(200).json({
       success: true,
       message: "OTP sent successfully.",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.getEmailHealth = async (req, res, next) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Admin access required.",
+      });
+    }
+
+    const verification = await sendEmail.verifyTransport();
+
+    return res.status(verification.success ? 200 : 503).json({
+      success: verification.success,
+      ...sendEmail.getEmailStatus(),
+      message: verification.message,
     });
   } catch (error) {
     next(error);
