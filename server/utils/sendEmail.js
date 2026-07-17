@@ -150,9 +150,7 @@ const sendEmail = async ({
     console.error("Email Error:", error.message);
 
     if (transporter || process.env.NODE_ENV === "production") {
-      const emailError = new Error(
-        "Unable to send email. Check Gmail app password or SMTP settings.",
-      );
+      const emailError = new Error("Unable to connect to the email server.");
       emailError.statusCode = 503;
       throw emailError;
     }
