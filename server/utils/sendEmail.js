@@ -38,11 +38,6 @@ const transporter = nodemailer.createTransport({
     rejectUnauthorized: true,
   },
 
-  connectionTimeout: 20000,
-  greetingTimeout: 20000,
-  socketTimeout: 30000,
-  dnsTimeout: 10000,
-
   logger: true,
   debug: true,
 });
