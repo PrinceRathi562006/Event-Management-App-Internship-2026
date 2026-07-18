@@ -10,7 +10,7 @@ const generateQRCode = async (data) => {
     const qrData = JSON.stringify(data);
 
     const qrCode = await QRCode.toDataURL(qrData, {
-      errorCorrectionLevel: "H",
+      errorCorrectionLevel: "M",
       type: "image/png",
       margin: 2,
       width: 300,
@@ -35,7 +35,7 @@ const generateQRBuffer = async (data) => {
     const qrData = JSON.stringify(data);
 
     return await QRCode.toBuffer(qrData, {
-      errorCorrectionLevel: "H",
+      errorCorrectionLevel: "M",
       type: "png",
       width: 300,
     });

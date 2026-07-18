@@ -145,13 +145,13 @@ const createAttendanceQRCode = async ({ booking, event, generatedBy }) => {
   const expiresAt = getEventEndDate(event);
   const secret = crypto.randomBytes(24).toString("hex");
   const bookingUserId = booking.user?._id || booking.user;
+  // Note: userId/registrationId/eventId are intentionally left out of the JWT
+  // payload. They're already stored on the QRSession document (looked up by
+  // token below), so repeating them here only bloats the token and makes the
+  // resulting QR code too dense for a phone/webcam camera to scan reliably.
   const token = jwt.sign(
     {
       type: "EVENT_ATTENDANCE",
-      userId: bookingUserId.toString(),
-      registrationId: booking._id.toString(),
-      eventId: event._id.toString(),
-      timestamp: Date.now(),
       secret,
     },
     process.env.QR_ATTENDANCE_SECRET || process.env.JWT_SECRET,
@@ -182,12 +182,15 @@ const createAttendanceQRCode = async ({ booking, event, generatedBy }) => {
     }
   );
 
+  // Keep this payload as small as possible: everything the scanner needs to
+  // resolve the registration (userId/registrationId/eventId) already lives on
+  // the QRSession row keyed by `token`, so we only need to encode enough to
+  // find that row and to allow the manual-entry fallback to still work.
   return generateQRCode({
     type: "EVENT_ATTENDANCE",
     token,
     bookingId: booking.bookingId,
     ticketNumber: booking.ticketNumber,
-    registrationId: booking._id.toString(),
     eventId: event._id.toString(),
   });
 };
