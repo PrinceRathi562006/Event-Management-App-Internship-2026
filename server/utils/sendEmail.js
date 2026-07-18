@@ -16,38 +16,43 @@ const emailUser = clean(process.env.EMAIL_USER || process.env.SMTP_USER);
 const emailPass = cleanSecret(process.env.EMAIL_PASS || process.env.SMTP_PASS);
 const smtpHost = clean(process.env.SMTP_HOST);
 const smtpPort = Number(process.env.SMTP_PORT || 587);
+const emailService = clean(process.env.EMAIL_SERVICE || "gmail");
 const smtpSecure =
   String(process.env.SMTP_SECURE || "").toLowerCase() === "true" ||
   smtpPort === 465;
 const emailConfigured = Boolean(emailUser && emailPass);
+const emailHost = smtpHost || (emailService === "gmail" ? "smtp.gmail.com" : emailService);
 
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false,
-  requireTLS: true,
-  family: 4,
+const transporter = emailConfigured
+  ? nodemailer.createTransport({
+      host: emailHost,
+      port: smtpPort,
+      secure: smtpSecure,
+      requireTLS: !smtpSecure,
+      family: 4,
 
-  auth: {
-    user: emailUser,
-    pass: emailPass,
-  },
+      auth: {
+        user: emailUser,
+        pass: emailPass,
+      },
 
-  tls: {
-    servername: "smtp.gmail.com",
-    rejectUnauthorized: true,
-  },
+      tls: {
+        servername: emailHost,
+        rejectUnauthorized: true,
+      },
 
-  logger: true,
-  debug: true,
-});
+      logger: process.env.NODE_ENV !== "production",
+      debug: process.env.NODE_ENV !== "production",
+    })
+  : null;
 
 console.log("SMTP CONFIG:", {
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false,
+  host: emailHost,
+  port: smtpPort,
+  secure: smtpSecure,
   family: 4,
-  user: emailUser,
+  user: maskEmail(emailUser),
+  configured: emailConfigured,
 });
 
 if (transporter) {
@@ -162,7 +167,7 @@ sendEmail.getEmailStatus = () => {
   return {
     configured: emailConfigured,
     user: maskEmail(emailUser),
-    provider: smtpHost || process.env.EMAIL_SERVICE || "gmail",
+    provider: smtpHost || emailService,
     timeoutMs: Number(process.env.EMAIL_TIMEOUT_MS || 12000),
   };
 };

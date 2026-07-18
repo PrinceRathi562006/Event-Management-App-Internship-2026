@@ -1,4 +1,4 @@
-const CACHE_NAME = "event-organizer-v1";
+const CACHE_NAME = "event-organizer-v2";
 const APP_SHELL = ["/", "/manifest.webmanifest", "/favicon.svg"];
 
 self.addEventListener("install", (event) => {
@@ -20,5 +20,16 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  event.respondWith(fetch(event.request).catch(() => caches.match(event.request).then((cached) => cached || caches.match("/"))));
+  const requestUrl = new URL(event.request.url);
+
+  if (requestUrl.origin !== self.location.origin || requestUrl.pathname.startsWith("/api")) {
+    return;
+  }
+
+  if (event.request.mode === "navigate") {
+    event.respondWith(fetch(event.request).catch(() => caches.match("/")));
+    return;
+  }
+
+  event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
 });
