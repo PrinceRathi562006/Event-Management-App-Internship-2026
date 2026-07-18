@@ -5,6 +5,7 @@ const certificateTemplate = ({
   certificateUrl,
   certificateNumber,
   bookingId,
+  verificationUrl,
 }) => `
 <!DOCTYPE html>
 <html>
@@ -41,6 +42,11 @@ const certificateTemplate = ({
                   Download Certificate
                 </a>
                 <p style="margin:14px 0 0;color:#64748b;font-size:14px;">A PDF copy is attached to this email.</p>
+                ${
+                  verificationUrl
+                    ? `<p style="margin:12px 0 0;color:#64748b;font-size:14px;">Verify certificate: <a href="${verificationUrl}" target="_blank" style="color:#2563eb;">${verificationUrl}</a></p>`
+                    : ""
+                }
               </div>
 
               <p style="margin-top:30px;color:#4b5563;">Best wishes,<br /><strong>Team Event Organizer</strong></p>
