@@ -3,13 +3,14 @@ const { findBooking, getPublicFileUrl, issueCertificateForBooking } = require(".
 
 const canManageEvent = (event, user) => {
   const userId = user._id.toString();
+  const idOf = (value) => String(value?._id || value || "");
 
   return (
     user.role === "admin" ||
-    event.organizer?.toString() === userId ||
-    event.assignedOrganizers?.some((id) => id.toString() === userId) ||
-    event.organizerCoordinators?.some((id) => id.toString() === userId) ||
-    event.studentCoordinators?.some((id) => id.toString() === userId)
+    idOf(event.organizer) === userId ||
+    event.assignedOrganizers?.some((id) => idOf(id) === userId) ||
+    event.organizerCoordinators?.some((id) => idOf(id) === userId) ||
+    event.studentCoordinators?.some((id) => idOf(id) === userId)
   );
 };
 

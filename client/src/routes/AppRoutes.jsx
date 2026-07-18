@@ -18,6 +18,7 @@ import Profile from "../pages/Profile";
 import Register from "../pages/Register";
 import Settings from "../pages/Settings";
 import VerifyEmail from "../pages/VerifyEmail";
+import VerifyCertificate from "../pages/VerifyCertificate";
 
 function SmoothScrollToTop() {
   const { pathname } = useLocation();
@@ -44,6 +45,7 @@ function AppRoutes() {
           <Route element={<EventDetail />} path="/events/:id" />
           <Route element={<CalendarView />} path="/calendar" />
           <Route element={<CertificatePage />} path="/certificates/:bookingId" />
+          <Route element={<VerifyCertificate />} path="/certificate/verify/:certificateId" />
           <Route element={<Login />} path="/login" />
           <Route element={<ForgotPassword />} path="/forgot-password" />
           <Route element={<Register />} path="/register" />

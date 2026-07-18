@@ -5,6 +5,7 @@ const Payment = require("../models/Payment");
 const Booking = require("../models/Booking");
 const Event = require("../models/Event");
 const Notification = require("../models/Notification");
+const sendSms = require("../utils/sendSms");
 const {
   createAttendanceQRCode,
   sendBookingConfirmationEmail,
@@ -25,6 +26,14 @@ const getRazorpay = () => {
     key_id: keyId,
     key_secret: keySecret,
   });
+};
+
+const safeSendSms = async (smsOptions) => {
+  try {
+    await sendSms(smsOptions);
+  } catch (error) {
+    console.error("Payment SMS failed:", error.message);
+  }
 };
 
 // ======================================================
@@ -250,6 +259,11 @@ exports.verifyPayment = async (req, res, next) => {
       type: "PAYMENT",
     });
 
+    await safeSendSms({
+      to: booking.user.phone,
+      message: `Payment successful for ${booking.event.title}. Booking ID: ${booking.bookingId}. Your QR ticket is ready.`,
+    });
+
     return res.status(200).json({
       success: true,
       message: "Payment verified successfully.",
@@ -300,7 +314,7 @@ exports.paymentFailed = async (req, res, next) => {
 
     const booking = await Booking.findById(
       payment.booking
-    );
+    ).populate("user", "phone");
 
     if (booking) {
       booking.paymentStatus = "Failed";
@@ -314,6 +328,11 @@ exports.paymentFailed = async (req, res, next) => {
         message:
           "Your payment could not be completed. Please try again.",
         type: "PAYMENT",
+      });
+
+      await safeSendSms({
+        to: booking.user?.phone,
+        message: "Your event payment failed. Please try again from your dashboard.",
       });
     }
 
@@ -366,7 +385,7 @@ exports.refundPayment = async (req, res, next) => {
     await payment.save();
 
     // Update Booking
-    const booking = await Booking.findById(payment.booking);
+    const booking = await Booking.findById(payment.booking).populate("user", "phone");
 
     if (booking) {
       booking.paymentStatus = "Refunded";
@@ -392,6 +411,11 @@ exports.refundPayment = async (req, res, next) => {
         message:
           "Your payment has been refunded successfully.",
         type: "PAYMENT",
+      });
+
+      await safeSendSms({
+        to: booking.user?.phone,
+        message: "Your event payment refund has been processed successfully.",
       });
     }
 

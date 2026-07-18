@@ -1,13 +1,24 @@
 const QRCode = require("qrcode");
 
-/**
- * Generate QR Code as Data URL
- * @param {Object} data
- * @returns {Promise<String>}
- */
+const encodeQRData = (data) => {
+  if (typeof data === "string") {
+    return data;
+  }
+
+  if (data?.type === "EVENT_ATTENDANCE" && data.token) {
+    return data.token;
+  }
+
+  if (data?.type === "CERTIFICATE_VERIFICATION" && data.verificationUrl) {
+    return data.verificationUrl;
+  }
+
+  return JSON.stringify(data);
+};
+
 const generateQRCode = async (data) => {
   try {
-    const qrData = JSON.stringify(data);
+    const qrData = encodeQRData(data);
 
     const qrCode = await QRCode.toDataURL(qrData, {
       errorCorrectionLevel: "M",
@@ -32,7 +43,7 @@ const generateQRCode = async (data) => {
  */
 const generateQRBuffer = async (data) => {
   try {
-    const qrData = JSON.stringify(data);
+    const qrData = encodeQRData(data);
 
     return await QRCode.toBuffer(qrData, {
       errorCorrectionLevel: "M",
@@ -49,7 +60,7 @@ const generateQRBuffer = async (data) => {
  */
 const generateQRFile = async (data, filePath) => {
   try {
-    const qrData = JSON.stringify(data);
+    const qrData = encodeQRData(data);
 
     await QRCode.toFile(filePath, qrData, {
       width: 300,
@@ -63,6 +74,7 @@ const generateQRFile = async (data, filePath) => {
 };
 
 module.exports = {
+  encodeQRData,
   generateQRCode,
   generateQRBuffer,
   generateQRFile,

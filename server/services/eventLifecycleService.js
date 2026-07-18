@@ -3,6 +3,7 @@ const Event = require("../models/Event");
 const Notification = require("../models/Notification");
 const QRSession = require("../models/QRSession");
 const { issueCertificatesForEvent } = require("./certificateService");
+const sendSms = require("../utils/sendSms");
 
 const COMPLETION_ALIASES = ["Completed", "Finished", "Ended"];
 
@@ -21,6 +22,14 @@ const getEventEndDate = (event) => {
 
 const shouldAutoComplete = (event, now = new Date()) =>
   event.status === "Approved" && getEventEndDate(event) < now;
+
+const safeSendSms = async (smsOptions) => {
+  try {
+    await sendSms(smsOptions);
+  } catch (error) {
+    console.error("Event lifecycle SMS failed:", error.message);
+  }
+};
 
 const completeEvent = async ({ event, req = null, triggeredBy = null, note = "Event completed automatically." }) => {
   const wasCompleted = event.status === "Completed";
@@ -48,12 +57,14 @@ const completeEvent = async ({ event, req = null, triggeredBy = null, note = "Ev
     const bookings = await Booking.find({
       event: event._id,
       bookingStatus: "Confirmed",
-    }).select("user");
+    })
+      .select("user bookingId")
+      .populate("user", "phone");
 
     if (bookings.length) {
       await Notification.insertMany(
         bookings.map((booking) => ({
-          user: booking.user,
+          user: booking.user._id || booking.user,
           event: event._id,
           title: "Event Completed",
           message: `${event.title} has been completed. Eligible certificates are being issued automatically.`,
@@ -61,6 +72,15 @@ const completeEvent = async ({ event, req = null, triggeredBy = null, note = "Ev
           actionText: "View dashboard",
           actionUrl: "/dashboard",
         }))
+      );
+
+      await Promise.all(
+        bookings.map((booking) =>
+          safeSendSms({
+            to: booking.user?.phone,
+            message: `${event.title} is completed. Eligible certificates are being issued automatically. Booking ID: ${booking.bookingId}.`,
+          })
+        )
       );
     }
   }

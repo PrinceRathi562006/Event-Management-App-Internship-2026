@@ -1,10 +1,19 @@
 const Event = require("../models/Event");
 const Booking = require("../models/Booking");
+const Attendance = require("../models/Attendance");
+const Certificate = require("../models/Certificate");
 const Notification = require("../models/Notification");
 const Payment = require("../models/Payment");
+const Feedback = require("../models/Feedback");
 const User = require("../models/User");
 const CoordinatorRequest = require("../models/CoordinatorRequest");
+const EventChatMessage = require("../models/EventChatMessage");
+const QRSession = require("../models/QRSession");
+const ScanLog = require("../models/ScanLog");
+const fs = require("fs");
+const path = require("path");
 const { getIO } = require("../sockets/socket");
+const { COMPLETION_ALIASES, completeEvent } = require("../services/eventLifecycleService");
 
 const {
   uploadToCloudinary,
@@ -108,6 +117,25 @@ const uploadGallery = async (files = []) => {
   }
 
   return uploads;
+};
+
+const deleteLocalUpload = (relativePath) => {
+  if (!relativePath || /^https?:\/\//i.test(relativePath)) {
+    return;
+  }
+
+  const uploadsRoot = path.resolve(__dirname, "../uploads");
+  const filePath = path.resolve(__dirname, "..", relativePath.replace(/^\/+/, ""));
+
+  if (!filePath.startsWith(uploadsRoot)) {
+    return;
+  }
+
+  fs.promises.unlink(filePath).catch((error) => {
+    if (error.code !== "ENOENT") {
+      console.error("Local upload cleanup failed:", error.message);
+    }
+  });
 };
 
 // ======================================================
@@ -281,7 +309,7 @@ exports.getAllEvents = async (req, res, next) => {
 
     const filter = {
       isPublished: true,
-      status: "Approved",
+      status: { $in: ["Approved", "Completed"] },
     };
 
     if (category) {
@@ -694,12 +722,37 @@ exports.deleteEvent = async (req, res, next) => {
       await deleteFromCloudinary(event.posterPublicId);
     }
 
+    for (const image of event.galleryImages || []) {
+      if (image.publicId) {
+        await deleteFromCloudinary(image.publicId);
+      }
+    }
+
     if (event.certificateSignaturePublicId) {
       await deleteFromCloudinary(event.certificateSignaturePublicId);
     }
 
+    const certificates = await Certificate.find({ event: event._id }).select("pdfUrl imageUrl");
+
+    certificates.forEach((certificate) => {
+      deleteLocalUpload(certificate.pdfUrl);
+      deleteLocalUpload(certificate.imageUrl);
+    });
+
+    await Promise.all([
+      Attendance.deleteMany({ eventId: event._id }),
+      Booking.deleteMany({ event: event._id }),
+      Payment.deleteMany({ event: event._id }),
+      Feedback.deleteMany({ event: event._id }),
+      Notification.deleteMany({ event: event._id }),
+      Certificate.deleteMany({ event: event._id }),
+      QRSession.deleteMany({ eventId: event._id }),
+      ScanLog.deleteMany({ event: event._id }),
+      EventChatMessage.deleteMany({ event: event._id }),
+      CoordinatorRequest.deleteMany({ event: event._id }),
+    ]);
+
     await Event.findByIdAndDelete(event._id);
-    await CoordinatorRequest.deleteMany({ event: event._id });
 
     return res.status(200).json({
       success: true,
@@ -758,7 +811,8 @@ exports.togglePublishEvent = async (req, res, next) => {
 
 exports.updateEventStatus = async (req, res, next) => {
   try {
-    const { status } = req.body;
+    const requestedStatus = req.body.status;
+    const status = COMPLETION_ALIASES.includes(requestedStatus) ? "Completed" : requestedStatus;
     const allowedStatuses = [
       "Draft",
       "Pending",
@@ -781,6 +835,31 @@ exports.updateEventStatus = async (req, res, next) => {
       return res.status(404).json({
         success: false,
         message: "Event not found.",
+      });
+    }
+
+    if (status === "Completed") {
+      const completed = await completeEvent({
+        event,
+        req,
+        triggeredBy: req.user._id,
+        note: req.body.note || `Marked completed from ${requestedStatus}.`,
+      });
+
+      await Notification.create({
+        user: event.organizer,
+        event: event._id,
+        title: "Event Completed",
+        message: `${event.title} has been completed. Certificates were processed automatically.`,
+        type: "EVENT",
+        priority: "MEDIUM",
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: "Event completed and certificates processed successfully.",
+        event: completed.event,
+        certificateSummary: completed.certificateSummary,
       });
     }
 
@@ -1053,7 +1132,7 @@ exports.searchEvents = async (req, res, next) => {
 
     const filter = {
       isPublished: true,
-      status: "Approved",
+      status: { $in: ["Approved", "Completed"] },
     };
 
     if (keyword) {

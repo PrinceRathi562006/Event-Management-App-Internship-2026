@@ -732,6 +732,7 @@ function Dashboard({ adminOnly = false }) {
   const [adminEvents, setAdminEvents] = useState([]);
   const [users, setUsers] = useState([]);
   const [coordinatorRequests, setCoordinatorRequests] = useState([]);
+  const [certificates, setCertificates] = useState([]);
   const [registrations, setRegistrations] = useState([]);
   const [analytics, setAnalytics] = useState(null);
   const [selectedEventId, setSelectedEventId] = useState("");
@@ -810,6 +811,7 @@ function Dashboard({ adminOnly = false }) {
     const studentSections = [
       { id: "requests", label: "Coordinator Requests", icon: ClipboardList },
       { id: "my-events", label: "My Events", icon: Ticket },
+      { id: "certificates", label: "Certificates", icon: Award },
       { id: "profile", label: "Profile Details", icon: User },
       { id: "notifications", label: "Notifications", icon: Bell },
     ];
@@ -821,7 +823,6 @@ function Dashboard({ adminOnly = false }) {
         { id: "coordinator-events", label: "Coordinator Events", icon: CalendarDays },
         { id: "attendance", label: "Attendance", icon: UsersRound },
         { id: "scanner", label: "QR Scanner", icon: QrCode },
-        { id: "certificates", label: "Certificates", icon: Award },
         { id: "analytics", label: "Analytics", icon: BarChart3 },
         { id: "operations", label: "Operations", icon: UserCog }
       );
@@ -845,6 +846,7 @@ function Dashboard({ adminOnly = false }) {
       if (role === "student") {
         requests.push(api.get("/bookings/my-bookings"));
         requests.push(api.get("/events/organizer/my-events"));
+        requests.push(api.get("/certificates/my"));
       }
 
       if (role === "organizer") {
@@ -863,6 +865,7 @@ function Dashboard({ adminOnly = false }) {
       const notificationResponse = responses[1];
       const bookingResponse = role === "student" ? responses[2] : null;
       const listResponse = role === "student" ? responses[3] : responses[2];
+      const certificateResponse = role === "student" ? responses[4] : null;
       const usersResponse = role === "admin" ? responses[3] : null;
       const coordinatorResponse = responses[responses.length - 1];
 
@@ -873,6 +876,7 @@ function Dashboard({ adminOnly = false }) {
       if (role === "student") {
         const coordinatorEvents = listResponse.data.events || [];
         setBookings(bookingResponse.data.bookings || []);
+        setCertificates(certificateResponse.data.certificates || []);
         setEvents(coordinatorEvents);
         setSelectedEventId((current) =>
           coordinatorEvents.some((event) => event._id === current) ? current : coordinatorEvents[0]?._id || ""
@@ -1231,6 +1235,52 @@ function Dashboard({ adminOnly = false }) {
                     </>
                   ) : (
                     <p>No registrations yet.</p>
+                  )}
+                </GlassCard>
+              </DashboardSection>
+
+              <DashboardSection active={activeSection === "certificates"}>
+                <GlassCard className="dashboard-panel wide-panel">
+                  <h2>My Certificates</h2>
+                  {certificates.length ? (
+                    <div className="certificate-card-grid">
+                      {certificates.map((certificate) => (
+                        <article className="certificate-card" key={certificate._id}>
+                          {certificate.imageUrl ? (
+                            <img alt={`${certificate.event?.title || "Event"} certificate`} src={getAssetUrl(certificate.imageUrl)} />
+                          ) : (
+                            <div className="certificate-card-placeholder">
+                              <Award size={28} />
+                            </div>
+                          )}
+                          <div>
+                            <strong>{certificate.event?.title || certificate.metadata?.eventName || "Certificate"}</strong>
+                            <span>{formatDate(certificate.issuedDate)}</span>
+                            <small>{certificate.certificateId}</small>
+                          </div>
+                          <div className="row-actions">
+                            {certificate.registration?._id && (
+                              <Link className="secondary-button" to={`/certificates/${certificate.registration._id}`}>
+                                View
+                              </Link>
+                            )}
+                            <a className="secondary-button" href={getAssetUrl(certificate.pdfUrl)} rel="noreferrer" target="_blank">
+                              <Download size={16} /> PDF
+                            </a>
+                            {certificate.imageUrl && (
+                              <a className="secondary-button" href={getAssetUrl(certificate.imageUrl)} rel="noreferrer" target="_blank">
+                                Image
+                              </a>
+                            )}
+                            <Link className="primary-button" to={`/certificate/verify/${certificate.certificateId}`}>
+                              Verify
+                            </Link>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <p>Certificates will appear here automatically after completed events when attendance is marked Present.</p>
                   )}
                 </GlassCard>
               </DashboardSection>

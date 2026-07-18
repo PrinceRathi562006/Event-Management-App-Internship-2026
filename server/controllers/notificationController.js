@@ -1,5 +1,14 @@
 const Notification = require("../models/Notification");
 const User = require("../models/User");
+const sendSms = require("../utils/sendSms");
+
+const safeSendSms = async (smsOptions) => {
+  try {
+    await sendSms(smsOptions);
+  } catch (error) {
+    console.error("Broadcast SMS failed:", error.message);
+  }
+};
 
 // ======================================================
 // Get My Notifications
@@ -158,7 +167,7 @@ exports.broadcastNotification = async (req, res, next) => {
 
     const users = await User.find({
       isBlocked: false,
-    }).select("_id");
+    }).select("_id phone");
 
     const notifications = users.map((user) => ({
       user: user._id,
@@ -168,6 +177,15 @@ exports.broadcastNotification = async (req, res, next) => {
     }));
 
     await Notification.insertMany(notifications);
+
+    await Promise.all(
+      users.map((user) =>
+        safeSendSms({
+          to: user.phone,
+          message: `${title}: ${message}`,
+        })
+      )
+    );
 
     return res.status(200).json({
       success: true,

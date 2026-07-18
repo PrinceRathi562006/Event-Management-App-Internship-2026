@@ -7,6 +7,7 @@ const Notification = require("../models/Notification");
 const generateCertificate = require("../utils/certificateGenerator");
 const { generateQRCode } = require("../utils/qrGenerator");
 const sendEmail = require("../utils/sendEmail");
+const sendSms = require("../utils/sendSms");
 const certificateTemplate = require("../templates/certificateTemplate");
 
 const objectIdPattern = /^[0-9a-fA-F]{24}$/;
@@ -63,6 +64,14 @@ const safeSendEmail = async (mailOptions) => {
     await sendEmail(mailOptions);
   } catch (error) {
     console.error("Certificate email failed:", error.message);
+  }
+};
+
+const safeSendSms = async (smsOptions) => {
+  try {
+    await sendSms(smsOptions);
+  } catch (error) {
+    console.error("Certificate SMS failed:", error.message);
   }
 };
 
@@ -226,6 +235,11 @@ const issueCertificateForBooking = async ({ booking, req = null, notify = true, 
       attachments: certificateAttachments,
     });
   }
+
+  await safeSendSms({
+    to: booking.user.phone,
+    message: `Certificate ready for ${booking.event.title}. Certificate ID: ${certificate.certificateId}. Verify: ${verificationUrl}`,
+  });
 
   return {
     certificate,

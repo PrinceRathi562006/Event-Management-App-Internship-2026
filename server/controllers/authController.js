@@ -4,6 +4,7 @@ const mongoose = require("mongoose");
 const { generateOTP, generateOTPExpiry } = require("../utils/generateOTP");
 const { sendTokenResponse } = require("../utils/generateToken");
 const sendEmail = require("../utils/sendEmail");
+const sendSms = require("../utils/sendSms");
 const otpTemplate = require("../templates/otpTemplate");
 const resetPasswordTemplate = require("../templates/resetPasswordTemplate");
 const { uploadFileToCloudinary, uploadToCloudinary } = require("../utils/cloudinaryUpload");
@@ -12,6 +13,17 @@ const normalizeEmail = (email = "") => email.trim().toLowerCase();
 
 const otpPlainText = ({ name = "User", otp, purpose = "account verification" }) =>
   `Hello ${name},\n\nYour Event Organizer OTP for ${purpose} is ${otp}.\n\nThis OTP expires in 5 minutes. Do not share it with anyone.\n\nTeam Event Organizer`;
+
+const otpSmsText = ({ otp, purpose = "account verification" }) =>
+  `Your Event Organizer OTP for ${purpose} is ${otp}. It expires in 5 minutes. Do not share it.`;
+
+const safeSendSms = async (options) => {
+  try {
+    await sendSms(options);
+  } catch (error) {
+    console.error("SMS delivery failed:", error.message);
+  }
+};
 
 const getDuplicateMatches = (user, { email, phone }) => {
   const matches = [];
@@ -78,6 +90,14 @@ const createAndSendOtp = async ({ user, purpose, subject, html }) => {
     }),
     html: html(otp),
   });
+
+  await safeSendSms({
+    to: user.phone,
+    message: otpSmsText({
+      otp,
+      purpose: purpose === "FORGOT_PASSWORD" ? "password reset" : "account verification",
+    }),
+  });
 };
 
 const createUserOtp = async ({ user, purpose }) => {
@@ -113,17 +133,28 @@ const createRegistrationOtp = async ({ email, registrationData }) => {
   return otp;
 };
 
-const sendRegistrationOtpEmail = (email, name, otp) =>
-  sendEmail({
+const sendRegistrationOtpMessage = async ({ email, name, phone, otp }) => {
+  await sendEmail({
     to: email,
     subject: "Your Event Organizer OTP",
     text: otpPlainText({ name, otp, purpose: "account verification" }),
     html: otpTemplate(name, otp),
   });
 
+  await safeSendSms({
+    to: phone,
+    message: otpSmsText({ otp, purpose: "account verification" }),
+  });
+};
+
 const createAndSendRegistrationOtp = async ({ email, name, registrationData }) => {
   const otp = await createRegistrationOtp({ email, registrationData });
-  await sendRegistrationOtpEmail(email, name, otp);
+  await sendRegistrationOtpMessage({
+    email,
+    name,
+    phone: registrationData.phone,
+    otp,
+  });
 };
 
 exports.registerUser = async (req, res, next) => {
@@ -169,7 +200,12 @@ exports.registerUser = async (req, res, next) => {
 
       if (!existingUser.isVerified && existingUser.email === normalizedEmail) {
         const otp = await createUserOtp({ user: existingUser, purpose: "REGISTER" });
-        await sendRegistrationOtpEmail(existingUser.email, existingUser.name, otp);
+        await sendRegistrationOtpMessage({
+          email: existingUser.email,
+          name: existingUser.name,
+          phone: existingUser.phone,
+          otp,
+        });
 
         return res.status(200).json({
           success: true,
@@ -486,7 +522,12 @@ exports.resendOTP = async (req, res, next) => {
         email,
         registrationData: pendingRegistration.registrationData,
       });
-      await sendRegistrationOtpEmail(email, pendingRegistration.registrationData.name, otp);
+      await sendRegistrationOtpMessage({
+        email,
+        name: pendingRegistration.registrationData.name,
+        phone: pendingRegistration.registrationData.phone,
+        otp,
+      });
 
       return res.status(200).json({
         success: true,
@@ -502,7 +543,12 @@ exports.resendOTP = async (req, res, next) => {
     }
 
     const otp = await createUserOtp({ user, purpose: "REGISTER" });
-    await sendRegistrationOtpEmail(user.email, user.name, otp);
+    await sendRegistrationOtpMessage({
+      email: user.email,
+      name: user.name,
+      phone: user.phone,
+      otp,
+    });
 
     return res.status(200).json({
       success: true,
@@ -527,6 +573,7 @@ exports.getEmailHealth = async (req, res, next) => {
     return res.status(verification.success ? 200 : 503).json({
       success: verification.success,
       ...sendEmail.getEmailStatus(),
+      sms: sendSms.getSmsStatus(),
       message: verification.message,
     });
   } catch (error) {

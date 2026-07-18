@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { Download, ShieldCheck } from "lucide-react";
 import CinematicHeroBackground from "../components/features/CinematicHeroBackground";
 import Container from "../components/ui/Container";
 import GlassCard from "../components/ui/GlassCard";
@@ -37,12 +38,31 @@ function CertificatePage() {
       <Container>
         <GlassCard className="certificate-preview">
           <p className="eyebrow">Certificate</p>
-          <h1>{certificate?.booking?.user?.name || "Certificate not issued yet"}</h1>
-          <p>{certificate?.booking?.event?.title || "Attendance must be marked before certificate generation."}</p>
+          <h1>{certificate?.certificate?.user?.name || certificate?.booking?.user?.name || "Certificate not issued yet"}</h1>
+          <p>{certificate?.certificate?.event?.title || certificate?.booking?.event?.title || "Attendance must be marked Present before certificate generation."}</p>
+          {certificate?.certificate?.imageUrl && (
+            <img
+              alt="Certificate preview"
+              className="certificate-hero-image"
+              src={getAssetUrl(certificate.certificate.imageUrl)}
+            />
+          )}
           {certificate?.certificateUrl ? (
-            <a className="primary-button" href={getAssetUrl(certificate.certificateUrl)} rel="noreferrer" target="_blank">
-              Download certificate
-            </a>
+            <div className="row-actions certificate-actions">
+              <a className="primary-button" href={getAssetUrl(certificate.certificateUrl)} rel="noreferrer" target="_blank">
+                <Download size={18} /> Download PDF
+              </a>
+              {certificate?.certificate?.imageUrl && (
+                <a className="secondary-button" href={getAssetUrl(certificate.certificate.imageUrl)} rel="noreferrer" target="_blank">
+                  Download Image
+                </a>
+              )}
+              {certificate?.certificate?.certificateId && (
+                <Link className="secondary-button" to={`/certificate/verify/${certificate.certificate.certificateId}`}>
+                  <ShieldCheck size={18} /> Verify Certificate
+                </Link>
+              )}
+            </div>
           ) : (
             <Link className="secondary-button" to="/dashboard">
               Back to dashboard

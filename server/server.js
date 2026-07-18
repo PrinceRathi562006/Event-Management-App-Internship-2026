@@ -11,13 +11,18 @@ dns.setServers([
 
 const connectDB = require("./config/db");
 const { initSocket } = require("./sockets/socket");
+const { startEventLifecycleWorker } = require("./services/eventLifecycleService");
 
-connectDB();
+const dbReady = connectDB();
 
 const PORT = process.env.PORT || 5000;
 const server = http.createServer(app);
 
 initSocket(server);
+
+dbReady.then(() => {
+    startEventLifecycleWorker();
+});
 
 server.on("error", (error) => {
     if (error.code === "EADDRINUSE") {

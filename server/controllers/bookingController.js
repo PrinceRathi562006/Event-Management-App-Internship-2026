@@ -10,6 +10,7 @@ const path = require("path");
 
 const { generateQRCode } = require("../utils/qrGenerator");
 const sendEmail = require("../utils/sendEmail");
+const sendSms = require("../utils/sendSms");
 const bookingTemplate = require("../templates/bookingTemplate");
 const certificateTemplate = require("../templates/certificateTemplate");
 
@@ -82,6 +83,14 @@ const safeSendEmail = async (mailOptions) => {
   }
 };
 
+const safeSendSms = async (smsOptions) => {
+  try {
+    await sendSms(smsOptions);
+  } catch (error) {
+    console.error("Transactional SMS failed:", error.message);
+  }
+};
+
 const generateBookingId = async () => {
   const year = new Date().getFullYear();
   const count = await Booking.countDocuments({
@@ -123,6 +132,11 @@ const sendBookingConfirmationEmail = async ({ booking, event, user }) => {
       qrCodeCid: qrCid,
     }),
     attachments: qrAttachment ? [qrAttachment] : [],
+  });
+
+  await safeSendSms({
+    to: user.phone,
+    message: `Registration confirmed for ${event.title}. Booking ID: ${booking.bookingId}. Date: ${formatDate(event.eventDate)} ${event.startTime}-${event.endTime}.`,
   });
 };
 
@@ -502,6 +516,14 @@ exports.cancelBooking = async (req, res, next) => {
         ? "Your booking has been cancelled successfully. Refund Initiated."
         : "Your booking has been cancelled successfully.",
       type: "BOOKING",
+    });
+
+    const bookingUser = await User.findById(booking.user).select("phone");
+    await safeSendSms({
+      to: bookingUser?.phone,
+      message: booking.refundStatus === "Refund Initiated"
+        ? "Your event booking was cancelled. Refund has been initiated."
+        : "Your event booking was cancelled successfully.",
     });
 
     return res.status(200).json({
