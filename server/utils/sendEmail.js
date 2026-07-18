@@ -2,6 +2,7 @@ const nodemailer = require("nodemailer");
 
 const clean = (value = "") => String(value || "").trim();
 const cleanSecret = (value = "") => clean(value).replace(/\s+/g, "");
+const isEnabled = (value = "") => ["1", "true", "yes", "on"].includes(clean(value).toLowerCase());
 const maskEmail = (value = "") => {
   const email = clean(value);
   const atIndex = email.indexOf("@");
@@ -17,11 +18,11 @@ const emailPass = cleanSecret(process.env.EMAIL_PASS || process.env.SMTP_PASS);
 const smtpHost = clean(process.env.SMTP_HOST);
 const smtpPort = Number(process.env.SMTP_PORT || 587);
 const emailService = clean(process.env.EMAIL_SERVICE || "gmail");
-const smtpSecure =
-  String(process.env.SMTP_SECURE || "").toLowerCase() === "true" ||
-  smtpPort === 465;
+const emailTimeoutMs = Number(process.env.EMAIL_TIMEOUT_MS || 12000);
+const smtpSecure = smtpPort === 465 || (smtpPort !== 587 && isEnabled(process.env.SMTP_SECURE));
 const emailConfigured = Boolean(emailUser && emailPass);
 const emailHost = smtpHost || (emailService === "gmail" ? "smtp.gmail.com" : emailService);
+const emailDebug = isEnabled(process.env.EMAIL_DEBUG);
 
 const transporter = emailConfigured
   ? nodemailer.createTransport({
@@ -30,6 +31,9 @@ const transporter = emailConfigured
       secure: smtpSecure,
       requireTLS: !smtpSecure,
       family: 4,
+      connectionTimeout: emailTimeoutMs,
+      greetingTimeout: emailTimeoutMs,
+      socketTimeout: emailTimeoutMs,
 
       auth: {
         user: emailUser,
@@ -41,8 +45,8 @@ const transporter = emailConfigured
         rejectUnauthorized: true,
       },
 
-      logger: process.env.NODE_ENV !== "production",
-      debug: process.env.NODE_ENV !== "production",
+      logger: emailDebug,
+      debug: emailDebug,
     })
   : null;
 
@@ -128,7 +132,7 @@ const sendEmail = async ({
           "X-Application": "Event Organizer",
         },
       }),
-      Number(process.env.EMAIL_TIMEOUT_MS || 12000),
+      emailTimeoutMs,
       "Email send",
     );
 
@@ -148,6 +152,7 @@ const sendEmail = async ({
     };
   } catch (error) {
     console.error("Email Error:", error.message);
+    transporter?.close?.();
 
     if (transporter || process.env.NODE_ENV === "production") {
       const emailError = new Error("Unable to connect to the email server.");
@@ -168,7 +173,7 @@ sendEmail.getEmailStatus = () => {
     configured: emailConfigured,
     user: maskEmail(emailUser),
     provider: smtpHost || emailService,
-    timeoutMs: Number(process.env.EMAIL_TIMEOUT_MS || 12000),
+    timeoutMs: emailTimeoutMs,
   };
 };
 
@@ -183,7 +188,7 @@ sendEmail.verifyTransport = async () => {
   try {
     await withTimeout(
       transporter.verify(),
-      Number(process.env.EMAIL_TIMEOUT_MS || 12000),
+      emailTimeoutMs,
       "Email verification",
     );
     return {
@@ -191,6 +196,8 @@ sendEmail.verifyTransport = async () => {
       message: "Email service connected successfully.",
     };
   } catch (error) {
+    transporter?.close?.();
+
     return {
       success: false,
       message: error.message,
