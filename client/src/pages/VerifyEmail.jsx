@@ -14,6 +14,7 @@ function VerifyEmail() {
   const [form, setForm] = useState({
     email: location.state?.email || "",
     otp: "",
+    otpChannel: location.state?.otpChannel || "sms",
   });
   const [loading, setLoading] = useState(false);
 
@@ -47,13 +48,13 @@ function VerifyEmail() {
 
     try {
       try {
-        await api.post("/auth/resend-otp", { email: form.email });
+        await api.post("/auth/resend-otp", { email: form.email, otpChannel: form.otpChannel });
       } catch (error) {
         if (error.response?.status !== 404) {
           throw error;
         }
 
-        await api.post("/auth/otp/resend", { email: form.email });
+        await api.post("/auth/otp/resend", { email: form.email, otpChannel: form.otpChannel });
       }
       toast.success("OTP sent again");
     } catch (error) {
@@ -67,7 +68,7 @@ function VerifyEmail() {
     <section className="auth-page">
       <Container>
         <GlassCard className="auth-card">
-          <p className="eyebrow">Email verification</p>
+          <p className="eyebrow">Account verification</p>
           <h1>Verify account</h1>
           <form onSubmit={verifyOtp}>
             <input
@@ -81,6 +82,11 @@ function VerifyEmail() {
               placeholder="6 digit OTP"
               value={form.otp}
             />
+            <select onChange={(event) => update("otpChannel", event.target.value)} value={form.otpChannel}>
+              <option value="sms">Resend to mobile</option>
+              <option value="email">Resend to email</option>
+              <option value="both">Resend to both</option>
+            </select>
             <button className="primary-button" disabled={loading} type="submit">
               {loading ? "Verifying..." : "Verify and continue"}
             </button>

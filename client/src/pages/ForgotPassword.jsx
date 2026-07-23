@@ -14,6 +14,7 @@ function ForgotPassword() {
     otp: "",
     password: "",
     confirmPassword: "",
+    otpChannel: "sms",
   });
   const [loading, setLoading] = useState(false);
 
@@ -26,8 +27,8 @@ function ForgotPassword() {
     setLoading(true);
 
     try {
-      await api.post("/auth/forgot-password", { email: form.email });
-      toast.success("Reset OTP sent to your email");
+      await api.post("/auth/forgot-password", { email: form.email, otpChannel: form.otpChannel });
+      toast.success(form.otpChannel === "email" ? "Reset OTP sent to your email" : "Reset OTP sent to your mobile");
       setStep("otp");
     } catch (error) {
       toast.error(error.response?.data?.message || "Could not send OTP");
@@ -94,6 +95,11 @@ function ForgotPassword() {
                 type="email"
                 value={form.email}
               />
+              <select onChange={(event) => update("otpChannel", event.target.value)} value={form.otpChannel}>
+                <option value="sms">Send OTP to mobile</option>
+                <option value="email">Send OTP to email</option>
+                <option value="both">Send OTP to both</option>
+              </select>
               <button className="primary-button" disabled={loading} type="submit">
                 {loading ? "Sending..." : "Send OTP"}
               </button>

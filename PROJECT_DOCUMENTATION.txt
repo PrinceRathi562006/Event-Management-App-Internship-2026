@@ -6,7 +6,8 @@ Event Organizer is a MERN stack campus event management system for Students,
 Organizers, and Admins. It supports OTP-based registration, date of birth in
 profiles, organizer approval, event approval, public event discovery, paid/free
 bookings, Razorpay payments, QR tickets, QR attendance, coordinator requests,
-feedback, expandable notifications, branded certificates, profile/settings,
+feedback, expandable notifications, optional SMS delivery, automated branded certificates,
+public certificate verification, profile/settings,
 chart-based analytics dashboards, AI-assisted event creation, poster export,
 seat selection controls, waitlists, rich event pages, social sharing, Google Calendar
 links, PWA installation, dark/light theme switching, volunteer operations,
@@ -92,14 +93,33 @@ Admin:
 1. User fills registration form.
 2. Server checks duplicate email and phone.
 3. Registration data is stored temporarily with OTP.
-4. OTP is saved first, then the server sends the OTP email with a hard timeout so signup cannot hang indefinitely.
-5. No User document is created before OTP verification for new registrations.
-6. User verifies OTP.
-7. User document is created in MongoDB.
-8. Older unverified User records can also verify with a resend OTP.
-9. Organizer accounts start as Pending Approval.
-10. Resend OTP supports both /api/auth/resend-otp and /api/auth/otp/resend for route compatibility.
-11. Admins can check email configuration with protected GET /api/auth/email-health.
+4. User chooses OTP delivery by mobile, email, or both.
+5. OTP is saved first, then the server sends the OTP through the selected channel.
+6. Gmail/SMTP delivery has a hard timeout so signup cannot hang indefinitely; SMS can be used when Gmail is unreliable.
+7. No User document is created before OTP verification for new registrations.
+8. User verifies OTP.
+9. User document is created in MongoDB.
+10. Older unverified User records can also verify with a resend OTP.
+11. Organizer accounts start as Pending Approval.
+12. Resend OTP supports both /api/auth/resend-otp and /api/auth/otp/resend for route compatibility.
+13. Admins can check email configuration with protected GET /api/auth/email-health.
+14. Admins can test SMS configuration with protected POST /api/auth/sms-test.
+
+Production messaging environment:
+
+EMAIL_SERVICE=gmail
+EMAIL_USER=<gmail address>
+EMAIL_PASS=<gmail app password>
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_SECURE=true
+EMAIL_TIMEOUT_MS=30000
+SMS_DISABLED=false
+TWILIO_ACCOUNT_SID=<twilio sid>
+TWILIO_AUTH_TOKEN=<twilio token>
+TWILIO_FROM_NUMBER=<twilio phone number>
+
+Render note: Render dashboard environment variables override server/.env. If logs show "Email send timed out after 12 seconds", update EMAIL_TIMEOUT_MS in Render to 30000 or 60000 and redeploy.
 
 5. Event Flow
 
@@ -109,10 +129,34 @@ Admin:
 4. Organizer can add agenda, learning outcomes, requirements, timeline, badges, speakers, sponsors/partners, and gallery assets.
 5. Organizer-created events are Pending.
 6. Admin reviews and approves/rejects.
-7. Only Approved and Published events appear publicly.
+7. Approved and Completed published events appear publicly; completed events show completion status.
 8. Event Settings can update event details, last date of registration, certificate signature, partner companies, and the choose-seat option later.
 9. Admins, organizers, and accepted coordinators can enable or disable choose-seat for each event from Event Settings.
 10. Disabling choose-seat clears saved seat labels for that event and hides the seat picker on Event Detail.
+
+Automatic event completion:
+- A lifecycle worker runs after database startup.
+- If current time is after the event end time and the event is Approved, the event becomes Completed.
+- Attendance QR sessions for the completed event are disabled.
+- Eligible certificates are generated automatically.
+- Upcoming-event reminders are created once per confirmed booking and sent by SMS when Twilio is configured.
+
+Certificate eligibility:
+- Booking must be Confirmed.
+- Attendance must be Present.
+- Paid events require paymentStatus Paid.
+- Absent users never receive certificates.
+
+Certificate verification:
+- Public route: /certificate/verify/:certificateId
+- API route: GET /api/certificates/verify/:certificateId
+- Student dashboard route: /dashboard -> Certificates
+- Certificate QR codes open the public verification page.
+
+QR reliability:
+- Attendance QR codes encode only the signed token.
+- Certificate QR codes encode only the verification URL.
+- This reduces QR density and improves scanning on mobile/webcam scanners.
 
 6. Coordinator Flow
 

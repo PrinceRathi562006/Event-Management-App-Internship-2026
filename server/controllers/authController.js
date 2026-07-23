@@ -19,10 +19,67 @@ const otpSmsText = ({ otp, purpose = "account verification" }) =>
 
 const safeSendSms = async (options) => {
   try {
-    await sendSms(options);
+    return await sendSms(options);
   } catch (error) {
     console.error("SMS delivery failed:", error.message);
+    return { success: false, skipped: false, error: error.message };
   }
+};
+
+const normalizeOtpChannel = (value) =>
+  ["email", "sms", "both"].includes(String(value || "").toLowerCase())
+    ? String(value).toLowerCase()
+    : "email";
+
+const sendOtpDelivery = async ({ channel = "email", email, phone, name, otp, purpose, html }) => {
+  const deliveryChannel = normalizeOtpChannel(channel);
+  const tasks = [];
+
+  if (["email", "both"].includes(deliveryChannel)) {
+    tasks.push(
+      sendEmail({
+        to: email,
+        subject: purpose === "password reset" ? "Reset Your Password" : "Your Event Organizer OTP",
+        text: otpPlainText({ name, otp, purpose }),
+        html,
+      }).then(
+        () => ({ channel: "email", success: true }),
+        (error) => ({ channel: "email", success: false, error: error.message })
+      )
+    );
+  }
+
+  if (["sms", "both"].includes(deliveryChannel)) {
+    tasks.push(
+      safeSendSms({
+        to: phone,
+        message: otpSmsText({ otp, purpose }),
+      }).then((result) => ({
+        channel: "sms",
+        success: Boolean(result?.success),
+        skipped: Boolean(result?.skipped),
+        error: result?.error || result?.reason || "",
+      }))
+    );
+  }
+
+  const results = await Promise.all(tasks);
+  const delivered = results.some((result) => result.success);
+
+  if (!delivered) {
+    const error = new Error(
+      results.map((result) => `${result.channel}: ${result.error || "not configured"}`).join("; ") ||
+        "OTP delivery failed."
+    );
+    error.statusCode = deliveryChannel === "sms" ? 503 : 503;
+    error.delivery = results;
+    throw error;
+  }
+
+  return {
+    channel: deliveryChannel,
+    results,
+  };
 };
 
 const getDuplicateMatches = (user, { email, phone }) => {
@@ -67,7 +124,7 @@ const findValidOtp = async ({ user, email, otp, purpose }) => {
   return { otpDoc };
 };
 
-const createAndSendOtp = async ({ user, purpose, subject, html }) => {
+const createAndSendOtp = async ({ user, purpose, subject, html, channel = "email" }) => {
   await OTP.deleteMany({ user: user._id, purpose });
 
   const otp = generateOTP();
@@ -80,23 +137,14 @@ const createAndSendOtp = async ({ user, purpose, subject, html }) => {
     expiresAt: generateOTPExpiry(),
   });
 
-  await sendEmail({
-    to: user.email,
-    subject,
-    text: otpPlainText({
-      name: user.name,
-      otp,
-      purpose: purpose === "FORGOT_PASSWORD" ? "password reset" : "account verification",
-    }),
+  return sendOtpDelivery({
+    channel,
+    email: user.email,
+    phone: user.phone,
+    name: user.name,
+    otp,
+    purpose: purpose === "FORGOT_PASSWORD" ? "password reset" : "account verification",
     html: html(otp),
-  });
-
-  await safeSendSms({
-    to: user.phone,
-    message: otpSmsText({
-      otp,
-      purpose: purpose === "FORGOT_PASSWORD" ? "password reset" : "account verification",
-    }),
   });
 };
 
@@ -133,27 +181,25 @@ const createRegistrationOtp = async ({ email, registrationData }) => {
   return otp;
 };
 
-const sendRegistrationOtpMessage = async ({ email, name, phone, otp }) => {
-  await sendEmail({
-    to: email,
-    subject: "Your Event Organizer OTP",
-    text: otpPlainText({ name, otp, purpose: "account verification" }),
+const sendRegistrationOtpMessage = async ({ email, name, phone, otp, channel = "email" }) =>
+  sendOtpDelivery({
+    channel,
+    email,
+    phone,
+    name,
+    otp,
+    purpose: "account verification",
     html: otpTemplate(name, otp),
   });
 
-  await safeSendSms({
-    to: phone,
-    message: otpSmsText({ otp, purpose: "account verification" }),
-  });
-};
-
-const createAndSendRegistrationOtp = async ({ email, name, registrationData }) => {
+const createAndSendRegistrationOtp = async ({ email, name, registrationData, channel = "email" }) => {
   const otp = await createRegistrationOtp({ email, registrationData });
-  await sendRegistrationOtpMessage({
+  return sendRegistrationOtpMessage({
     email,
     name,
     phone: registrationData.phone,
     otp,
+    channel,
   });
 };
 
@@ -175,10 +221,12 @@ exports.registerUser = async (req, res, next) => {
       rollNumber,
       department,
       designation,
+      otpChannel,
     } = req.body;
 
     const normalizedEmail = normalizeEmail(email);
     const publicRole = ["student", "organizer"].includes(role) ? role : null;
+    const deliveryChannel = normalizeOtpChannel(otpChannel);
 
     if (!publicRole) {
       return res.status(400).json({
@@ -205,6 +253,7 @@ exports.registerUser = async (req, res, next) => {
           name: existingUser.name,
           phone: existingUser.phone,
           otp,
+          channel: deliveryChannel,
         });
 
         return res.status(200).json({
@@ -282,7 +331,9 @@ exports.registerUser = async (req, res, next) => {
             rollNumber,
             department,
             designation,
+            otpChannel: deliveryChannel,
           },
+          channel: deliveryChannel,
         });
 
         return res.status(200).json({
@@ -325,6 +376,7 @@ exports.registerUser = async (req, res, next) => {
       organizerStatus: publicRole === "organizer" ? "Pending" : "Not Applicable",
       profileImage,
       profileImagePublicId,
+      otpChannel: deliveryChannel,
     };
 
     if (publicRole === "organizer") {
@@ -342,6 +394,7 @@ exports.registerUser = async (req, res, next) => {
       email: normalizedEmail,
       name,
       registrationData,
+      channel: deliveryChannel,
     });
 
     return res.status(201).json({
@@ -349,7 +402,7 @@ exports.registerUser = async (req, res, next) => {
       message:
         publicRole === "organizer"
           ? "Organizer registration successful. Verify your email, then wait for admin approval."
-          : "Registration successful. OTP sent to your email.",
+          : `Registration successful. OTP sent by ${deliveryChannel === "both" ? "email and SMS" : deliveryChannel}.`,
       email: normalizedEmail,
     });
   } catch (error) {
@@ -503,6 +556,7 @@ exports.loginUser = async (req, res, next) => {
 exports.resendOTP = async (req, res, next) => {
   try {
     const email = normalizeEmail(req.body.email);
+    const deliveryChannel = normalizeOtpChannel(req.body.otpChannel);
     const user = await User.findOne({ email });
 
     if (!user) {
@@ -527,6 +581,7 @@ exports.resendOTP = async (req, res, next) => {
         name: pendingRegistration.registrationData.name,
         phone: pendingRegistration.registrationData.phone,
         otp,
+        channel: deliveryChannel,
       });
 
       return res.status(200).json({
@@ -548,6 +603,7 @@ exports.resendOTP = async (req, res, next) => {
       name: user.name,
       phone: user.phone,
       otp,
+      channel: deliveryChannel,
     });
 
     return res.status(200).json({
@@ -608,9 +664,35 @@ exports.sendEmailTest = async (req, res, next) => {
   }
 };
 
+exports.sendSmsTest = async (req, res, next) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Admin access required.",
+      });
+    }
+
+    const to = req.body.to || req.user.phone;
+    const result = await sendSms({
+      to,
+      message: "Event Organizer SMS test message.",
+    });
+
+    return res.status(result.success ? 200 : 503).json({
+      success: result.success,
+      message: result.success ? "Test SMS sent." : result.reason || "SMS could not be sent.",
+      sms: sendSms.getSmsStatus(),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.forgotPassword = async (req, res, next) => {
   try {
     const email = normalizeEmail(req.body.email);
+    const deliveryChannel = normalizeOtpChannel(req.body.otpChannel);
     const user = await User.findOne({ email });
 
     if (!user) {
@@ -625,6 +707,7 @@ exports.forgotPassword = async (req, res, next) => {
       purpose: "FORGOT_PASSWORD",
       subject: "Reset Your Password",
       html: (otp) => resetPasswordTemplate({ name: user.name, otp }),
+      channel: deliveryChannel,
     });
 
     return res.status(200).json({

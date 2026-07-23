@@ -27,6 +27,7 @@ function Register() {
     department: "",
     designation: "",
     profileImage: null,
+    otpChannel: "sms",
   });
   const [loading, setLoading] = useState(false);
   const [duplicateInfo, setDuplicateInfo] = useState(null);
@@ -53,8 +54,12 @@ function Register() {
       await api.post("/auth/register", payload, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      toast.success("Registration created. Check your email for the OTP.");
-      navigate("/verify-email", { state: { email: form.email } });
+      toast.success(
+        form.otpChannel === "email"
+          ? "Registration created. Check your email for the OTP."
+          : "Registration created. Check your mobile for the OTP."
+      );
+      navigate("/verify-email", { state: { email: form.email, otpChannel: form.otpChannel } });
     } catch (error) {
       const duplicateMatches = error.response?.data?.duplicateMatches || [];
       const existingAccount = error.response?.data?.existingAccount;
@@ -88,6 +93,11 @@ function Register() {
               value={form.email}
             />
             <input onChange={(event) => update("phone", event.target.value)} placeholder="Phone" value={form.phone} />
+            <select onChange={(event) => update("otpChannel", event.target.value)} value={form.otpChannel}>
+              <option value="sms">Send OTP to mobile</option>
+              <option value="email">Send OTP to email</option>
+              <option value="both">Send OTP to both</option>
+            </select>
             <input
               onChange={(event) => update("college", event.target.value)}
               placeholder="College name"

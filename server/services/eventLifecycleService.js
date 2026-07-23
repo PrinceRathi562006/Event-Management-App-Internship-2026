@@ -111,11 +111,63 @@ const completeExpiredEvents = async ({ now = new Date(), limit = 50 } = {}) => {
   return completed;
 };
 
+const sendUpcomingEventReminders = async ({ now = new Date(), hoursAhead = 24, limit = 100 } = {}) => {
+  const reminderUntil = new Date(now.getTime() + hoursAhead * 60 * 60 * 1000);
+  const events = await Event.find({
+    status: "Approved",
+    isPublished: true,
+    eventDate: {
+      $gte: now,
+      $lte: reminderUntil,
+    },
+  })
+    .sort({ eventDate: 1 })
+    .limit(limit);
+
+  for (const event of events) {
+    const bookings = await Booking.find({
+      event: event._id,
+      bookingStatus: "Confirmed",
+      paymentStatus: event.isPaid ? "Paid" : { $in: ["Paid", "Pending"] },
+    })
+      .select("user bookingId")
+      .populate("user", "phone");
+
+    for (const booking of bookings) {
+      const alreadySent = await Notification.exists({
+        user: booking.user._id || booking.user,
+        event: event._id,
+        type: "REMINDER",
+        title: "Event Reminder",
+      });
+
+      if (alreadySent) {
+        continue;
+      }
+
+      await Notification.create({
+        user: booking.user._id || booking.user,
+        event: event._id,
+        title: "Event Reminder",
+        message: `${event.title} is coming up soon. Keep your QR ticket ready.`,
+        type: "REMINDER",
+        actionText: "View event",
+        actionUrl: `/events/${event._id}`,
+      });
+
+      await safeSendSms({
+        to: booking.user?.phone,
+        message: `Reminder: ${event.title} is coming up soon. Keep your QR ticket ready. Booking ID: ${booking.bookingId}.`,
+      });
+    }
+  }
+};
+
 const startEventLifecycleWorker = () => {
   const intervalMs = Number(process.env.EVENT_LIFECYCLE_INTERVAL_MS || 15 * 60 * 1000);
 
   const run = () => {
-    completeExpiredEvents().catch((error) => {
+    Promise.all([completeExpiredEvents(), sendUpcomingEventReminders()]).catch((error) => {
       console.error("Event lifecycle worker failed:", error.message);
     });
   };
@@ -129,6 +181,7 @@ module.exports = {
   completeEvent,
   completeExpiredEvents,
   getEventEndDate,
+  sendUpcomingEventReminders,
   shouldAutoComplete,
   startEventLifecycleWorker,
 };

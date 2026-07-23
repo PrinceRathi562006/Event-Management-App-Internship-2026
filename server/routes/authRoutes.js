@@ -22,6 +22,7 @@ const {
   uploadResume,
   getEmailHealth,
   sendEmailTest,
+  sendSmsTest,
   logout,
 } = authController;
 
@@ -54,6 +55,11 @@ const registerValidation = [
     .isLength({ min: 6 })
     .withMessage("Password must be at least 6 characters"),
 
+  body("otpChannel")
+    .optional()
+    .isIn(["email", "sms", "both"])
+    .withMessage("OTP channel must be email, sms, or both"),
+
   validate,
 ];
 
@@ -74,6 +80,11 @@ const emailValidation = [
   body("email")
     .isEmail()
     .withMessage("Valid email is required"),
+
+  body("otpChannel")
+    .optional()
+    .isIn(["email", "sms", "both"])
+    .withMessage("OTP channel must be email, sms, or both"),
 
   validate,
 ];
@@ -224,6 +235,12 @@ router.post(
   "/email-test",
   protect,
   sendEmailTest
+);
+
+router.post(
+  "/sms-test",
+  protect,
+  sendSmsTest
 );
 
 // Change Password

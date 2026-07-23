@@ -18,7 +18,7 @@ const emailPass = cleanSecret(process.env.EMAIL_PASS || process.env.SMTP_PASS);
 const smtpHost = clean(process.env.SMTP_HOST);
 const smtpPort = Number(process.env.SMTP_PORT || 587);
 const emailService = clean(process.env.EMAIL_SERVICE || "gmail");
-const emailTimeoutMs = Number(process.env.EMAIL_TIMEOUT_MS || 12000);
+const emailTimeoutMs = Number(process.env.EMAIL_TIMEOUT_MS || 60000);
 const smtpSecure = smtpPort === 465 || (smtpPort !== 587 && isEnabled(process.env.SMTP_SECURE));
 const emailConfigured = Boolean(emailUser && emailPass);
 const emailHost = smtpHost || (emailService === "gmail" ? "smtp.gmail.com" : emailService);
